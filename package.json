@@ -12,6 +12,7 @@
   "scripts": {
     "dev": "pnpm run --parallel dev",
     "build": "pnpm run --recursive build",
+    "start": "cd apps/web && npm start",
     "test": "pnpm run --recursive test",
     "lint": "pnpm run --recursive lint",
     "format": "prettier --write .",
@@ -23,6 +24,11 @@
     "api:dev": "pnpm --filter @gadgetguru/api dev",
     "web:dev": "pnpm --filter @gadgetguru/web dev",
     "prepare": "husky install"
+  },
+  "dependencies": {
+    "next": "^14.0.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

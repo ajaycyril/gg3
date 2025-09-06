@@ -1,0 +1,135 @@
+# 🚀 GadgetGuru v1 – Full Production-Ready Build Plan
+
+### 🔹 Objective:
+Create a GPT + RAG-powered AI gadget recommender that dynamically presents structured and unstructured product intelligence to users through an adaptive interface, pulling from live sources like Amazon, Reddit, YouTube, and benchmark sites.
+
+---
+
+## ✅ Phase 1: Database Setup and Schema
+
+- **Task 1.1:** Create Supabase schema with tables:
+  - `gadgets`, `reviews`, `recommendations`, `embeddings`, `users`, `feedback`, `specs_normalized`, `benchmarks`
+- **Task 1.2:** Enable `pgvector` extension in Supabase
+- **Task 1.3:** Indexing:
+  - B-tree for lookups (e.g. `gadgets.name`)
+  - Full-text search on `reviews.content`, `specs_normalized.value`
+  - `ivfflat` index on `embeddings.vector`
+- **Task 1.4:** RLS (Row-Level Security)
+- **Task 1.5:** RLS Policies:
+  - Public read: `gadgets`, `reviews`, `specs_normalized`, `benchmarks`
+  - Auth users can modify own `recommendations`, `feedback`, `users`
+
+---
+
+## 🔄 Phase 2: Scraping, Ingestion, Embeddings
+
+- **Task 2.1:** Amazon Scraper via Playwright
+  - Extract: name, price, brand, image, link, specs, reviews
+  - Anti-bot protection & pagination
+- **Task 2.2:** Reddit Review Crawler
+  - Use Reddit API with fallback scraping
+- **Task 2.3:** YouTube Transcripts
+  - Fetch and parse review video transcripts
+- **Task 2.4:** Benchmark Scrapers
+  - Geekbench, Cinebench, Passmark, structured scoring
+- **Task 2.5:** Data Cleaning Pipeline
+  - Normalize specs into `specs_normalized`, clean text
+- **Task 2.6:** Data Ingestion Workers
+  - Insert into Supabase, handle deduplication
+- **Task 2.7:** Embedding Generator (text-embedding-3-small)
+  - Target: `reviews.content`, `specs_normalized.value`, `benchmarks.context_json`
+- **Task 2.8:** Cron job / Supabase Scheduled Functions
+  - Continuous daily scraping + embedding update
+
+---
+
+## 🧠 Phase 3: API, LLM, and RAG Integration
+
+- **Task 3.1:** Backend setup (`apps/api`)
+- **Task 3.2:** Supabase DB client helpers
+- **Task 3.3:** Auth Endpoints (Magic Link + Google/GitHub OAuth)
+- **Task 3.4:** API Endpoints
+  - `GET /api/gadgets`
+  - `GET /api/gadgets/:id`
+  - `POST /api/recommendations`
+  - `GET /api/recommendations/:id`
+  - `POST /api/feedback`
+  - `GET/PUT /api/users/:id/preferences`
+- **Task 3.5:** RAG + GPT-4 + LangChain Workflow
+  - Query + filter → vector similarity → retrieve → construct context → call LLM → parse output → store in `recommendations`
+- **Task 3.6:** Redis-based caching for LLM outputs (Upstash)
+- **Task 3.7:** Rate limiting via IP / tokens
+- **Task 3.8:** Logging + Error Handling
+  - Sentry, Supabase Logs, central handler
+
+---
+
+## 💻 Phase 4: Frontend App (Next.js + ShadCN + TailwindCSS)
+
+- **Task 4.1:** Setup `apps/web` using App Router
+- **Task 4.2:** Tailwind CSS + ShadCN integration
+- **Task 4.3:** Supabase Auth frontend flow
+- **Task 4.4:** Pages & Components:
+  - Homepage w/ search bar + chat
+  - Gadget Search Results (filter by brand/specs/price)
+  - Gadget Details Page (AI insights, reviews, specs, benchmarks)
+  - Recommendation View (with cited reviews/benchmarks)
+  - User Profile Page (preferences, saved searches)
+  - Admin Panel (optional)
+- **Task 4.5:** Frontend-API Integration
+- **Task 4.6:** Adaptive UI logic based on user skill level (expert vs casual)
+
+---
+
+## 🧪 Phase 5: Testing, CI/CD, and Deployment
+
+- **Task 5.1:** Unit Tests (Vitest)
+- **Task 5.2:** E2E Tests (Playwright)
+- **Task 5.3:** CI/CD with GitHub Actions
+- **Task 5.4:** Deployment
+  - Frontend: Vercel
+  - Backend: Supabase Functions / Fly.io / Railway
+  - DB + Auth: Supabase
+- **Task 5.5:** Monitoring + Analytics
+  - Sentry (error logging)
+  - PostHog (product analytics)
+  - Healthchecks (for uptime of APIs)
+- **Task 5.6:** Supabase Logs > Sentry / PostHog integration
+
+---
+
+## 🔐 Security Best Practices (Applied Throughout)
+
+- Supabase RLS enforcement for every table
+- HTTPS enforced across Vercel / APIs
+- Authenticated endpoints + token validation
+- Rate limiting via IP token bucket
+- No hardcoded secrets — use environment variables
+- Audit trail in Supabase logs
+- Sensitive fields encrypted where applicable (e.g. OAuth tokens)
+
+---
+
+## 🏗️ Bonus Enhancements (Optional but Recommended)
+
+- Admin moderation tools for scraped content
+- GPT content moderation filters before storage
+- Real-time price tracker with Supabase Functions
+- Multi-model support: Claude 3, Gemini, etc.
+- Auto-persona detection to tailor UX for casual vs power users
+- Feedback loop to fine-tune prompts from user input
+- SEO-optimized static pages for most recommended gadgets
+
+---
+
+## 🌍 Ready for Product Hunt & Global Launch
+
+- Fully secure architecture ✅  
+- AI-first experience (RAG + GPT) ✅  
+- Live scraping + review insights ✅  
+- Redis caching + rate limiting ✅  
+- Scalable via serverless + Supabase ✅  
+- API monetization ready ✅  
+- Frontend: Responsive + ShadCN ✅  
+- Analytics + Error Tracking ✅  ERROR:  42601: syntax error at or near ","
+LINE 165: ON users FOR SELECT, UPDATE

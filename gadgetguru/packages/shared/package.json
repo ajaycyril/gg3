@@ -1,0 +1,23 @@
+{
+  "name": "shared",
+  "version": "1.0.0",
+  "description": "Shared package for GadgetGuru project",
+  "main": "src/index.js",
+  "scripts": {
+    "build": "tsc",
+    "test": "jest"
+  },
+  "keywords": [
+    "gadgetguru",
+    "shared",
+    "typescript"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "dependencies": {},
+  "devDependencies": {
+    "typescript": "^4.0.0",
+    "jest": "^26.0.0",
+    "@types/jest": "^26.0.0"
+  }
+}

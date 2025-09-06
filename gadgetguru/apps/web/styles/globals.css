@@ -1,0 +1,48 @@
+*styles/globals.css*
+
+:root {
+    --primary-color: #1a202c;
+    --secondary-color: #2d3748;
+    --accent-color: #4a5568;
+    --text-color: #edf2f7;
+    --background-color: #f7fafc;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: var(--background-color);
+    color: var(--text-color);
+    line-height: 1.6;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    color: var(--primary-color);
+}
+
+a {
+    color: var(--accent-color);
+    text-decoration: none;
+}
+
+a:hover {
+    text-decoration: underline;
+}
+
+button {
+    background-color: var(--primary-color);
+    color: var(--text-color);
+    border: none;
+    padding: 0.5rem 1rem;
+    cursor: pointer;
+    border-radius: 0.25rem;
+}
+
+button:hover {
+    background-color: var(--secondary-color);
+}

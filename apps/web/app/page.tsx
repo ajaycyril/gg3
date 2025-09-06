@@ -5,7 +5,7 @@ import { SearchBar } from '@/components/SearchBar'
 import { GadgetCard } from '@/components/GadgetCard'
 import { Button } from '@/components/ui/Button'
 import { apiService } from '@/lib/api'
-import { Gadget, SearchFilters, PaginatedResponse } from '@gadgetguru/shared'
+import { Gadget, SearchFilters, PaginatedResponse } from '@/lib/types'
 import { Sparkles, TrendingUp, Award } from 'lucide-react'
 
 export default function HomePage() {

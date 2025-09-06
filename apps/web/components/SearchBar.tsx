@@ -1,9 +1,9 @@
 'use client'
 
 import React, { useState } from 'react'
+import { Button } from './ui/Button'
 import { Search, Filter, X } from 'lucide-react'
-import { Button } from '@/components/ui/Button'
-import { SearchFilters } from '@gadgetguru/shared'
+import { SearchFilters } from '@/lib/types'
 
 interface SearchBarProps {
   onSearch: (filters: SearchFilters) => void

@@ -1,10 +1,11 @@
 'use client'
 
 import React from 'react'
+import { Card, CardContent } from './ui/Card'
+import { Button } from './ui/Button'
+import { Star, ExternalLink, Heart, Bookmark } from 'lucide-react'
+import { Gadget } from '@/lib/types'
 import Image from 'next/image'
-import { Star, Heart, ExternalLink } from 'lucide-react'
-import { Button } from '@/components/ui/Button'
-import { Gadget } from '@gadgetguru/shared'
 import { formatCurrency, formatDate } from '@/lib/utils'
 
 interface GadgetCardProps {

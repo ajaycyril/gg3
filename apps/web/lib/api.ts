@@ -8,7 +8,7 @@ import {
   User,
   UserPreferences,
   Feedback 
-} from '@gadgetguru/shared'
+} from '@/lib/types'
 
 class ApiService {
   private client: AxiosInstance

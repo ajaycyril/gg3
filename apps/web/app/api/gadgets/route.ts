@@ -1,20 +1,27 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 
-// Use service key on server-side (not exposed to client)
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!, // This would be server-only
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false
-    }
-  }
-)
-
 export async function GET(request: NextRequest) {
   try {
+    // Check if environment variables are available
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+      return NextResponse.json(
+        { error: 'Supabase configuration not available' },
+        { status: 500 }
+      )
+    }
+
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+      {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false
+        }
+      }
+    )
+
     const { searchParams } = new URL(request.url)
     const search = searchParams.get('search')
     const category = searchParams.get('category')

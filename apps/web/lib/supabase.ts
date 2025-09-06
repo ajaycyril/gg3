@@ -25,34 +25,31 @@ export const supabaseService = {
       .select('*')
 
     // Apply filters
-    if (filters.search) {
-      query = query.or(`name.ilike.%${filters.search}%,description.ilike.%${filters.search}%,brand.ilike.%${filters.search}%`)
+    if (filters.query) {
+      query = query.or(`name.ilike.%${filters.query}%,description.ilike.%${filters.query}%,brand.ilike.%${filters.query}%`)
     }
 
-    if (filters.category) {
-      query = query.eq('category', filters.category)
+    if (filters.brands && filters.brands.length > 0) {
+      query = query.in('brand', filters.brands)
     }
 
-    if (filters.brand) {
-      query = query.eq('brand', filters.brand)
+    if (filters.price_min) {
+      query = query.gte('price', filters.price_min)
     }
 
-    if (filters.minPrice) {
-      query = query.gte('price', filters.minPrice)
+    if (filters.price_max) {
+      query = query.lte('price', filters.price_max)
     }
 
-    if (filters.maxPrice) {
-      query = query.lte('price', filters.maxPrice)
-    }
-
-    if (filters.minRating) {
-      query = query.gte('rating', filters.minRating)
+    if (filters.rating_min) {
+      query = query.gte('rating', filters.rating_min)
     }
 
     // Apply sorting
-    if (filters.sortBy) {
-      const ascending = filters.sortOrder === 'asc'
-      query = query.order(filters.sortBy, { ascending })
+    if (filters.sort_by) {
+      const ascending = filters.sort_by.includes('_asc')
+      const sortField = filters.sort_by.replace('_asc', '').replace('_desc', '')
+      query = query.order(sortField, { ascending })
     } else {
       // Default sorting by created_at descending
       query = query.order('created_at', { ascending: false })
@@ -99,31 +96,44 @@ export const supabaseService = {
     const { data, error } = await supabase
       .from('gadgets')
       .select('brand')
-      .order('brand')
 
     if (error) {
       console.error('Error fetching brands:', error)
       throw error
     }
 
-    // Get unique brands
-    const uniqueBrands = [...new Set(data?.map(item => item.brand).filter(Boolean))] as string[]
+    // Get unique brands, filter out null values
+    const uniqueBrands = Array.from(new Set(
+      (data as Array<{ brand: string | null }>)
+        ?.map(item => item.brand)
+        .filter((brand): brand is string => Boolean(brand))
+    )).sort()
     return uniqueBrands
   },
 
   async getCategories(): Promise<string[]> {
+    // Since there's no category field in the database schema,
+    // we'll extract categories from the specs jsonb field or return empty array
     const { data, error } = await supabase
       .from('gadgets')
-      .select('category')
-      .order('category')
+      .select('specs')
 
     if (error) {
       console.error('Error fetching categories:', error)
       throw error
     }
 
-    // Get unique categories
-    const uniqueCategories = [...new Set(data?.map(item => item.category).filter(Boolean))] as string[]
-    return uniqueCategories
+    // Extract categories from specs if they exist
+    const categories = new Set<string>()
+    ;(data as Array<{ specs: any }>)?.forEach(item => {
+      if (item.specs && typeof item.specs === 'object' && 'category' in item.specs) {
+        const category = (item.specs as any).category
+        if (typeof category === 'string') {
+          categories.add(category)
+        }
+      }
+    })
+
+    return Array.from(categories).sort()
   }
 }

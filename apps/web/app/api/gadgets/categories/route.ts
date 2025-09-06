@@ -1,28 +1,45 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false
-    }
-  }
-)
-
 export async function GET() {
   try {
+    // Check if environment variables are available
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+      return NextResponse.json(
+        { error: 'Supabase configuration not available' },
+        { status: 500 }
+      )
+    }
+
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+      {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false
+        }
+      }
+    )
+
     const { data, error } = await supabase
       .from('gadgets')
-      .select('category')
-      .order('category')
+      .select('specs')
 
     if (error) throw error
 
-    // Get unique categories
-    const uniqueCategories = [...new Set(data?.map(item => item.category).filter(Boolean))] as string[]
+    // Extract categories from specs jsonb field
+    const categories = new Set<string>()
+    data?.forEach(item => {
+      if (item.specs && typeof item.specs === 'object' && 'category' in item.specs) {
+        const category = (item.specs as any).category
+        if (typeof category === 'string') {
+          categories.add(category)
+        }
+      }
+    })
+
+    const uniqueCategories = Array.from(categories).sort()
     
     return NextResponse.json(uniqueCategories)
   } catch (error) {

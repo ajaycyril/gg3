@@ -26,12 +26,19 @@
     },
     "apps/web/app/api/**/*.ts": {
       "runtime": "edge"
+    },
+    "apps/api/src/**/*.ts": {
+      "runtime": "nodejs18.x"
     }
   },
   "env": {
     "NEXT_PUBLIC_SUPABASE_URL": "@supabase_url",
     "NEXT_PUBLIC_SUPABASE_ANON_KEY": "@supabase_anon_key",
-    "NODE_ENV": "production"
+    "NODE_ENV": "production",
+    "OPENAI_API_KEY": "@openai_api_key",
+    "SUPABASE_URL": "@supabase_url",
+    "SUPABASE_ANON_KEY": "@supabase_anon_key",
+    "SUPABASE_SERVICE_ROLE_KEY": "@supabase_service_role_key"
   },
   "regions": ["iad1", "sfo1", "fra1"],
   "headers": [
@@ -51,6 +58,17 @@
           "value": "nosniff"
         }
       ]
+    }
+  ],
+  "buildCommand": "cd apps/web && npm run build",
+  "devCommand": "cd apps/web && npm run dev",
+  "installCommand": "pnpm install",
+  "outputDirectory": "apps/web/.next",
+  "framework": "nextjs",
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/$1"
     }
   ]
 }

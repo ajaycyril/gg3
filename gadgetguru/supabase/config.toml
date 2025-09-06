@@ -1,9 +1,0 @@
-# Supabase configuration for the GadgetGuru project
-
-db_url = "postgres://<username>:<password>@localhost:5432/<database_name>"
-anon_key = "<your_anon_key>"
-service_role_key = "<your_service_role_key>"
-jwt_secret = "<your_jwt_secret>"
-migrations_dir = "migrations"
-seeds_dir = "seeds"
-database = "gadgetguru"

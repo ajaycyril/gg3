@@ -1,0 +1,38 @@
+{
+  "name": "@gadgetguru/root",
+  "version": "1.0.0",
+  "private": true,
+  "description": "GadgetGuru - AI-Powered Gadget Recommendations",
+  "author": "GadgetGuru Team",
+  "license": "MIT",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "pnpm run --parallel dev",
+    "build": "pnpm run --recursive build",
+    "test": "pnpm run --recursive test",
+    "lint": "pnpm run --recursive lint",
+    "format": "prettier --write .",
+    "type-check": "pnpm run --recursive type-check",
+    "clean": "pnpm run --recursive clean",
+    "db:push": "cd supabase && npx supabase db push",
+    "db:seed": "cd supabase && npx supabase db seed",
+    "db:reset": "cd supabase && npx supabase db reset",
+    "api:dev": "pnpm --filter @gadgetguru/api dev",
+    "web:dev": "pnpm --filter @gadgetguru/web dev",
+    "prepare": "husky install"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "prettier": "^3.0.0",
+    "husky": "^8.0.0",
+    "lint-staged": "^15.0.0",
+    "typescript": "^5.0.0"
+  },
+  "lint-staged": {
+    "*.{js,ts,tsx}": ["prettier --write", "eslint --fix"],
+    "*.{json,md}": ["prettier --write"]
+  }
+}

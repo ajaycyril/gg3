@@ -3,11 +3,11 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-const express_1 = require("express");
 const supabaseClient_1 = require("../db/supabaseClient");
 const errorHandler_1 = require("../middleware/errorHandler");
 const logger_1 = __importDefault(require("../utils/logger"));
 const joi_1 = __importDefault(require("joi"));
+const express_1 = require("express");
 const router = (0, express_1.Router)();
 // Validation schemas
 const signInSchema = joi_1.default.object({
@@ -52,11 +52,15 @@ router.post('/signin', (0, errorHandler_1.asyncHandler)(async (req, res) => {
         });
     }
     const response = {
+        success: true,
         data: {
             user: {
                 id: data.user.id,
-                email: data.user.email,
-                user_metadata: data.user.user_metadata,
+                email: data.user.email || '',
+                name: data.user.user_metadata?.display_name || '',
+                avatar_url: data.user.user_metadata?.avatar_url,
+                created_at: data.user.created_at,
+                updated_at: data.user.updated_at || data.user.created_at,
             },
             session: data.session,
         },
@@ -90,14 +94,18 @@ router.post('/signup', (0, errorHandler_1.asyncHandler)(async (req, res) => {
         });
     }
     const response = {
+        success: true,
         data: {
             message: data.user?.email_confirmed_at
                 ? 'Account created successfully'
                 : 'Please check your email to confirm your account',
             user: data.user ? {
                 id: data.user.id,
-                email: data.user.email,
-                user_metadata: data.user.user_metadata,
+                email: data.user.email || '',
+                name: data.user.user_metadata?.display_name || '',
+                avatar_url: data.user.user_metadata?.avatar_url,
+                created_at: data.user.created_at,
+                updated_at: data.user.updated_at || data.user.created_at,
             } : undefined,
         },
     };
@@ -127,6 +135,7 @@ router.post('/magic-link', (0, errorHandler_1.asyncHandler)(async (req, res) => 
         });
     }
     const response = {
+        success: true,
         data: {
             message: 'Magic link sent to your email',
         },
@@ -135,12 +144,10 @@ router.post('/magic-link', (0, errorHandler_1.asyncHandler)(async (req, res) => 
 }));
 // POST /api/auth/signout - Sign out
 router.post('/signout', (0, errorHandler_1.asyncHandler)(async (req, res) => {
-    const authHeader = req.headers.authorization;
-    if (authHeader?.startsWith('Bearer ')) {
-        const token = authHeader.split(' ')[1];
-        await supabaseClient_1.supabaseAdmin.auth.signOut(token);
-    }
+    // For server-side signout, we'll just respond successfully
+    // The client should handle clearing the session locally
     const response = {
+        success: true,
         data: {
             message: 'Signed out successfully',
         },
@@ -165,10 +172,14 @@ router.get('/user', (0, errorHandler_1.asyncHandler)(async (req, res) => {
         });
     }
     const response = {
+        success: true,
         data: {
             id: user.id,
-            email: user.email,
-            user_metadata: user.user_metadata,
+            email: user.email || '',
+            name: user.user_metadata?.display_name || '',
+            avatar_url: user.user_metadata?.avatar_url,
+            created_at: user.created_at,
+            updated_at: user.updated_at || user.created_at,
         },
     };
     res.json(response);

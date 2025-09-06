@@ -56,10 +56,11 @@ export async function GET(request: NextRequest) {
     if (search) {
       const searchTerm = search.trim().toLowerCase()
       if (searchTerm.length > 0) {
-        query = query.or(`name.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%,brand.ilike.%${searchTerm}%`)
+        query = query.or(`name.ilike.%${searchTerm}%,brand.ilike.%${searchTerm}%`)
       }
     }
-    if (category) query = query.eq('category', category)
+    // Note: Category filtering removed as column doesn't exist in schema
+    // Categories can be extracted from specs JSONB field if needed
     if (brand) query = query.eq('brand', brand)
 
     // Apply pagination

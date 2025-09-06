@@ -5,7 +5,7 @@ import { asyncHandler } from '../middleware/errorHandler';
 import logger from '../utils/logger';
 import Joi from 'joi';
 
-const router = Router();
+const router: Router = Router();
 
 // Validation schemas
 const feedbackSchema = Joi.object({
@@ -80,7 +80,10 @@ router.post('/', asyncHandler(async (req: Request, res: Response) => {
     rating
   });
 
-  const response: ApiResponse<Feedback> = { data };
+  const response: ApiResponse<Feedback> = { 
+    success: true,
+    data 
+  };
   res.status(201).json(response);
 }));
 
@@ -106,11 +109,16 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
   }
 
   const response: PaginatedResponse<Feedback> = {
+    success: true,
     data: data || [],
-    total: count || 0,
-    page: Math.floor(offset / limit) + 1,
-    limit,
-    hasMore: (count || 0) > offset + limit,
+    pagination: {
+      total: count || 0,
+      page: Math.floor(offset / limit) + 1,
+      limit,
+      offset,
+      hasMore: (count || 0) > offset + limit,
+      totalPages: Math.ceil((count || 0) / limit),
+    },
   };
 
   res.json(response);
@@ -160,7 +168,10 @@ router.put('/:id', asyncHandler(async (req: Request, res: Response) => {
 
   logger.info('Feedback updated:', { id, userId });
 
-  const response: ApiResponse<Feedback> = { data };
+  const response: ApiResponse<Feedback> = { 
+    success: true,
+    data 
+  };
   res.json(response);
 }));
 

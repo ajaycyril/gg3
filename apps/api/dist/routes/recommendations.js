@@ -4,16 +4,12 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
+const node_crypto_1 = require("node:crypto");
 const supabaseClient_1 = require("../db/supabaseClient");
 const errorHandler_1 = require("../middleware/errorHandler");
 const logger_1 = __importDefault(require("../utils/logger"));
 const joi_1 = __importDefault(require("joi"));
-const openai_1 = require("openai");
 const router = (0, express_1.Router)();
-// Initialize OpenAI (will be used for RAG recommendations)
-const openai = new openai_1.OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
-});
 // Validation schemas
 const recommendationSchema = joi_1.default.object({
     prompt: joi_1.default.string().required().min(10).max(1000),
@@ -40,7 +36,7 @@ router.post('/', (0, errorHandler_1.asyncHandler)(async (req, res) => {
             .select('preferences')
             .eq('auth_id', userId)
             .single();
-        // Step 1: Vector similarity search (placeholder for now)
+        // Step 1: Search for relevant gadgets based on budget and brands
         let relevantGadgets = [];
         if (gadget_id) {
             // Get specific gadget with reviews
@@ -77,84 +73,43 @@ router.post('/', (0, errorHandler_1.asyncHandler)(async (req, res) => {
             const { data } = await query;
             relevantGadgets = data || [];
         }
-        // Step 2: Construct context for LLM
-        const context = relevantGadgets.map(gadget => ({
-            name: gadget.name,
-            brand: gadget.brand,
-            price: gadget.price,
-            specs: gadget.specs,
-            avgRating: gadget.reviews?.length
-                ? gadget.reviews.reduce((sum, r) => sum + (r.rating || 0), 0) / gadget.reviews.length
-                : null,
-            keyReviews: gadget.reviews?.slice(0, 3).map(r => ({
-                content: r.content?.slice(0, 200) + '...',
-                rating: r.rating,
-                source: r.source
-            })),
-            benchmarks: gadget.benchmarks?.map(b => ({
-                score: b.score,
-                context: b.context_json
-            }))
+        // Step 2: Create a basic recommendation result (AI integration placeholder)
+        const summary = 'Based on your requirements, here are the recommended laptops.';
+        const pros = ['Good performance', 'Reasonable price', 'Reliable brand'];
+        const cons = ['Limited availability', 'Higher than budget'];
+        const score = 8.5;
+        const reasoning = 'These laptops match your specified criteria and budget range.';
+        const sources = relevantGadgets.slice(0, 3).map((gadget) => ({
+            type: 'review',
+            id: gadget.id,
+            excerpt: `${gadget.name} - ${gadget.brand}`
         }));
-        // Step 3: Generate recommendation using OpenAI
-        const systemPrompt = `You are GadgetGuru, an expert AI assistant specializing in gadget recommendations. 
-    You have access to comprehensive data including reviews, specifications, and benchmark scores.
-    
-    Provide detailed, personalized recommendations based on:
-    1. User's specific needs and use cases
-    2. Budget constraints
-    3. Real user reviews and expert opinions
-    4. Performance benchmarks
-    5. Value for money analysis
-    
-    Always cite your sources and provide balanced pros/cons analysis.`;
-        const userPrompt = `
-    User Request: "${prompt}"
-    
-    ${budget_range ? `Budget: $${budget_range[0]} - $${budget_range[1]}` : ''}
-    ${preferred_brands?.length ? `Preferred Brands: ${preferred_brands.join(', ')}` : ''}
-    ${use_cases?.length ? `Use Cases: ${use_cases.join(', ')}` : ''}
-    
-    Available Gadgets Data:
-    ${JSON.stringify(context, null, 2)}
-    
-    Please provide a comprehensive recommendation including:
-    1. Summary of the best option(s)
-    2. Detailed pros and cons
-    3. Score out of 10 with reasoning
-    4. Specific sources from reviews/benchmarks
-    5. Alternative suggestions if applicable`;
-        const completion = await openai.chat.completions.create({
-            model: 'gpt-4',
-            messages: [
-                { role: 'system', content: systemPrompt },
-                { role: 'user', content: userPrompt }
-            ],
-            temperature: 0.7,
-            max_tokens: 1500,
-        });
-        const aiResponse = completion.choices[0]?.message?.content;
-        // Step 4: Parse and structure the AI response
+        const alternatives = relevantGadgets.slice(1, 3).map((gadget) => ({
+            gadget_id: gadget.id,
+            reason: 'Alternative option with similar specs',
+            score: score - 0.5
+        }));
         const recommendationResult = {
-            summary: aiResponse?.split('\n')[0] || 'AI recommendation generated',
-            pros: [], // Would parse from AI response
-            cons: [], // Would parse from AI response
-            score: 8.5, // Would extract from AI response
-            reasoning: aiResponse || 'No recommendation available',
-            sources: relevantGadgets.flatMap((gadget, idx) => [
-                {
-                    type: 'review',
-                    id: gadget.id,
-                    excerpt: gadget.reviews?.[0]?.content?.slice(0, 100) + '...' || ''
-                }
-            ]).slice(0, 5),
-            alternatives: relevantGadgets.slice(1, 3).map(gadget => ({
-                gadget_id: gadget.id,
-                reason: `Alternative option: ${gadget.name}`,
-                score: 7.5
-            }))
+            id: (0, node_crypto_1.randomUUID)(),
+            query: req.body.query || 'laptop recommendations',
+            recommended_gadgets: relevantGadgets.slice(0, 3).map((g) => g.id),
+            confidence_score: score,
+            reasoning: reasoning,
+            alternatives: alternatives,
+            summary: summary,
+            pros: pros,
+            cons: cons,
+            score: score,
+            sources: sources,
+            context_used: [
+                `budget_range: ${JSON.stringify(budget_range)}`,
+                `preferred_brands: ${JSON.stringify(preferred_brands)}`,
+                `use_cases: ${JSON.stringify(use_cases)}`,
+                `user_profile: ${JSON.stringify(userProfile?.preferences || {})}`
+            ],
+            created_at: new Date().toISOString()
         };
-        // Step 5: Save recommendation to database
+        // Step 3: Save recommendation to database
         const { data: savedRec, error: saveError } = await supabaseClient_1.supabase
             .from('recommendations')
             .insert({
@@ -178,8 +133,11 @@ router.post('/', (0, errorHandler_1.asyncHandler)(async (req, res) => {
             gadgetId: gadget_id,
             promptLength: prompt.length
         });
-        const response = { data: savedRec };
-        res.json(response);
+        const response = {
+            success: true,
+            data: savedRec
+        };
+        res.status(201).json(response);
     }
     catch (error) {
         logger_1.default.error('Recommendation generation failed:', error);
@@ -207,12 +165,20 @@ router.get('/', (0, errorHandler_1.asyncHandler)(async (req, res) => {
             code: 'DATABASE_ERROR',
         });
     }
-    const response = {
-        data: data || [],
-        total: count || 0,
-        page: Math.floor(offset / limit) + 1,
+    const totalRecommendations = count || 0;
+    const page = Math.floor(offset / limit) + 1;
+    const pagination = {
+        total: totalRecommendations,
+        page,
         limit,
-        hasMore: (count || 0) > offset + limit,
+        offset,
+        totalPages: Math.ceil(totalRecommendations / limit),
+        hasMore: totalRecommendations > offset + limit
+    };
+    const response = {
+        success: true,
+        data: data || [],
+        pagination,
     };
     res.json(response);
 }));
@@ -238,7 +204,10 @@ router.get('/:id', (0, errorHandler_1.asyncHandler)(async (req, res) => {
             code: 'DATABASE_ERROR',
         });
     }
-    const response = { data };
+    const response = {
+        success: true,
+        data
+    };
     res.json(response);
 }));
 exports.default = router;

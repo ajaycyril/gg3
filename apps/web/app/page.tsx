@@ -2,32 +2,11 @@
 
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/lib/auth'
+import { api } from '@/lib/api'
 import AdaptiveChat from '@/components/AdaptiveChat'
 import DynamicLaptopGrid from '@/components/DynamicLaptopGrid'
 import { Button } from '@/components/ui/Button'
-
-interface UIConfiguration {
-  layout: {
-    view_mode: string
-    density: string
-    sidebar_visible: boolean
-  }
-  interaction: {
-    chat_complexity: string
-    suggested_questions_complexity: number
-    enable_deep_dive_mode: boolean
-  }
-  content: {
-    spec_detail_level: string
-    show_benchmarks: boolean
-    show_technical_details: boolean
-  }
-  filters: {
-    visible_filters: string[]
-    advanced_filters_visible: boolean
-    filter_complexity: string
-  }
-}
+import { UIConfiguration } from '@gadgetguru/shared'
 
 export default function HomePage() {
   const { user } = useAuth()
@@ -45,36 +24,101 @@ export default function HomePage() {
 
   const initializeAdaptiveInterface = async () => {
     try {
+      console.log('🚀 Starting adaptive interface initialization...')
       setIsLoading(true)
       
-      // Load initial laptop data
-      const laptopsResponse = await fetch('/api/gadgets?category=laptop&limit=20')
-      const laptopsData = await laptopsResponse.json()
-      
-      if (laptopsData.success) {
-        setLaptops(laptopsData.data)
+      // Load initial laptop data from API client
+      try {
+        console.log('📊 Fetching gadgets...')
+        const laptopsData = await api.getGadgets({ limit: 20 })
+        console.log('✅ Gadgets loaded:', laptopsData)
+        if (laptopsData.data) {
+          setLaptops(laptopsData.data)
+          console.log('📱 Set laptops count:', laptopsData.data.length)
+        }
+      } catch (laptopError) {
+        console.error('❌ Failed to load laptops:', laptopError)
+        // Continue without laptop data - user can still use chat
       }
 
-      // Get user's adaptive UI configuration
-      if (user) {
-        const configResponse = await fetch('/api/ai/ui-config', {
-          credentials: 'include'
-        })
-        const configData = await configResponse.json()
-        
-        if (configData.success) {
-          setUiConfig(configData.data.configuration)
-          
-          // Set initial view based on user preference
-          const preferredView = configData.data.configuration.layout?.sidebar_visible 
-            ? 'split' 
-            : 'browse'
-          setActiveView(preferredView)
+      // Get dynamic UI configuration from backend AI service using API client
+      try {
+        console.log('🎨 Fetching UI configuration...')
+        const uiConfigData = await api.getUIConfiguration(user?.id || 'anonymous')
+        console.log('✅ UI Config loaded:', uiConfigData)
+        if (uiConfigData && uiConfigData.data) {
+          setUiConfig(uiConfigData.data as UIConfiguration)
+          console.log('🎯 Set UI config:', uiConfigData.data)
         }
+      } catch (configError) {
+        console.error('❌ Failed to load dynamic UI config:', configError)
+        // Use a default configuration so the UI doesn't break
+        setUiConfig({
+          layout: { 
+            view_mode: 'cards', 
+            density: 'normal', 
+            sidebar_visible: true 
+          },
+          filters: {
+            visible_filters: ['price', 'brand', 'use_case'],
+            advanced_filters_visible: false,
+            filter_complexity: 'simple'
+          },
+          content: { 
+            spec_detail_level: 'basic',
+            show_benchmarks: false,
+            show_technical_details: false,
+            comparison_mode: 'simple'
+          },
+          recommendations: {
+            explanation_depth: 'moderate',
+            show_alternatives: true,
+            highlight_technical: false
+          },
+          interaction: { 
+            chat_complexity: 'conversational',
+            suggested_questions_complexity: 5,
+            enable_deep_dive_mode: false
+          }
+        })
       }
+
+      // Start with split view to show both chat and browse
+      setActiveView('split')
+      console.log('✅ Adaptive interface initialization complete!')
 
     } catch (error) {
-      console.error('Failed to initialize adaptive interface:', error)
+      console.error('💥 Failed to initialize adaptive interface:', error)
+      setLaptops([])
+      // Set a fallback UI config so the app doesn't break
+      setUiConfig({
+        layout: { 
+          view_mode: 'cards', 
+          density: 'normal', 
+          sidebar_visible: true 
+        },
+        filters: {
+          visible_filters: ['price', 'brand', 'use_case'],
+          advanced_filters_visible: false,
+          filter_complexity: 'simple'
+        },
+        content: { 
+          spec_detail_level: 'basic',
+          show_benchmarks: false,
+          show_technical_details: false,
+          comparison_mode: 'simple'
+        },
+        recommendations: {
+          explanation_depth: 'moderate',
+          show_alternatives: true,
+          highlight_technical: false
+        },
+        interaction: { 
+          chat_complexity: 'conversational',
+          suggested_questions_complexity: 5,
+          enable_deep_dive_mode: false
+        }
+      })
     } finally {
       setIsLoading(false)
     }
@@ -137,12 +181,13 @@ export default function HomePage() {
         ))}
       </div>
       
-      {/* Expertise indicator */}
-      {uiConfig && (
+      {/* Expertise indicator with proper null checking */}
+      {uiConfig?.content && (
         <div className="ml-4 px-3 py-1 bg-gray-100 rounded-full text-xs">
           {uiConfig.content.spec_detail_level === 'expert' && '🔬 Expert Mode'}
           {uiConfig.content.spec_detail_level === 'detailed' && '⚖️ Detailed Mode'}
           {uiConfig.content.spec_detail_level === 'basic' && '🎯 Simple Mode'}
+          {!uiConfig.content.spec_detail_level && '🤖 Auto Mode'}
         </div>
       )}
     </div>
@@ -253,14 +298,14 @@ export default function HomePage() {
             
             <div className="bg-white p-4 rounded-lg border border-gray-200">
               <div className="text-2xl font-bold text-purple-600">
-                {uiConfig?.content.spec_detail_level || 'Auto'}
+                {uiConfig?.content?.spec_detail_level || 'Auto'}
               </div>
               <div className="text-sm text-gray-600">Complexity Level</div>
             </div>
             
             <div className="bg-white p-4 rounded-lg border border-gray-200">
               <div className="text-2xl font-bold text-orange-600">
-                {uiConfig?.interaction.suggested_questions_complexity || 5}/10
+                {uiConfig?.interaction?.suggested_questions_complexity || 5}/10
               </div>
               <div className="text-sm text-gray-600">Chat Complexity</div>
             </div>

@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import { randomUUID } from 'node:crypto';
 import { supabase } from '../db/supabaseClient';
 import { 
   Recommendation, 
@@ -10,7 +11,16 @@ import { asyncHandler } from '../middleware/errorHandler';
 import logger from '../utils/logger';
 import Joi from 'joi';
 
-const router = Router();
+interface PaginationInfo {
+  total: number;
+  page: number;
+  limit: number;
+  offset: number;
+  totalPages: number;
+  hasMore: boolean;
+}
+
+const router: Router = Router();
 
 // Validation schemas
 const recommendationSchema = Joi.object({
@@ -84,31 +94,41 @@ router.post('/', asyncHandler(async (req: Request, res: Response) => {
     }
 
     // Step 2: Create a basic recommendation result (AI integration placeholder)
+    const summary = 'Based on your requirements, here are the recommended laptops.';
+    const pros = ['Good performance', 'Reasonable price', 'Reliable brand'];
+    const cons = ['Limited availability', 'Higher than budget'];
+    const score = 8.5;
+    const reasoning = 'These laptops match your specified criteria and budget range.';
+    const sources = relevantGadgets.slice(0, 3).map((gadget: any) => ({
+      type: 'review' as const,
+      id: gadget.id,
+      excerpt: `${gadget.name} - ${gadget.brand}`
+    }));
+    const alternatives = relevantGadgets.slice(1, 3).map((gadget: any) => ({
+      gadget_id: gadget.id,
+      reason: 'Alternative option with similar specs',
+      score: score - 0.5
+    }));
+
     const recommendationResult: RecommendationResult = {
-      summary: `Based on your request: "${prompt}", here are the best options from ${relevantGadgets.length} gadgets found.`,
-      pros: [
-        'Great value for money',
-        'Excellent user reviews',
-        'Meets your requirements'
+      id: randomUUID(),
+      query: req.body.query || 'laptop recommendations',
+      recommended_gadgets: relevantGadgets.slice(0, 3).map((g: any) => g.id),
+      confidence_score: score,
+      reasoning: reasoning,
+      alternatives: alternatives,
+      summary: summary,
+      pros: pros,
+      cons: cons,
+      score: score,
+      sources: sources,
+      context_used: [
+        `budget_range: ${JSON.stringify(budget_range)}`,
+        `preferred_brands: ${JSON.stringify(preferred_brands)}`,
+        `use_cases: ${JSON.stringify(use_cases)}`,
+        `user_profile: ${JSON.stringify(userProfile?.preferences || {})}`
       ],
-      cons: [
-        'Limited availability',
-        'Higher price point'
-      ],
-      score: 8.5,
-      reasoning: `After analyzing ${relevantGadgets.length} gadgets matching your criteria, these recommendations provide the best balance of features, price, and user satisfaction.`,
-      sources: relevantGadgets.flatMap((gadget, idx) => [
-        {
-          type: 'review' as const,
-          id: gadget.id,
-          excerpt: gadget.reviews?.[0]?.content?.slice(0, 100) + '...' || 'No reviews available'
-        }
-      ]).slice(0, 5),
-      alternatives: relevantGadgets.slice(1, 3).map(gadget => ({
-        gadget_id: gadget.id,
-        reason: `Alternative option: ${gadget.name}`,
-        score: 7.5
-      }))
+      created_at: new Date().toISOString()
     };
 
     // Step 3: Save recommendation to database
@@ -138,8 +158,11 @@ router.post('/', asyncHandler(async (req: Request, res: Response) => {
       promptLength: prompt.length 
     });
 
-    const response: ApiResponse<Recommendation> = { data: savedRec };
-    res.json(response);
+    const response: ApiResponse<Recommendation> = { 
+      success: true,
+      data: savedRec 
+    };
+    res.status(201).json(response);
 
   } catch (error) {
     logger.error('Recommendation generation failed:', error);
@@ -171,12 +194,21 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
     });
   }
 
-  const response: PaginatedResponse<Recommendation> = {
-    data: data || [],
-    total: count || 0,
-    page: Math.floor(offset / limit) + 1,
+  const totalRecommendations = count || 0;
+  const page = Math.floor(offset / limit) + 1;
+  const pagination: PaginationInfo = {
+    total: totalRecommendations,
+    page,
     limit,
-    hasMore: (count || 0) > offset + limit,
+    offset,
+    totalPages: Math.ceil(totalRecommendations / limit),
+    hasMore: totalRecommendations > offset + limit
+  };
+
+  const response: PaginatedResponse<Recommendation> = {
+    success: true,
+    data: data || [],
+    pagination,
   };
 
   res.json(response);
@@ -208,7 +240,10 @@ router.get('/:id', asyncHandler(async (req: Request, res: Response) => {
     });
   }
 
-  const response: ApiResponse<Recommendation> = { data };
+  const response: ApiResponse<Recommendation> = { 
+    success: true,
+    data 
+  };
   res.json(response);
 }));
 

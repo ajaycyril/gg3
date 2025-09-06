@@ -85,11 +85,16 @@ router.get('/', (0, errorHandler_1.asyncHandler)(async (req, res) => {
         });
     }
     const response = {
+        success: true,
         data: data || [],
-        total: count || 0,
-        page: Math.floor(offset / limit) + 1,
-        limit,
-        hasMore: (count || 0) > offset + limit,
+        pagination: {
+            total: count || 0,
+            page: Math.floor(offset / limit) + 1,
+            limit,
+            offset,
+            totalPages: Math.ceil((count || 0) / limit),
+            hasMore: (count || 0) > offset + limit,
+        },
     };
     res.json(response);
 }));
@@ -125,7 +130,10 @@ router.get('/:id', (0, errorHandler_1.asyncHandler)(async (req, res) => {
             code: 'DATABASE_ERROR',
         });
     }
-    const response = { data };
+    const response = {
+        success: true,
+        data
+    };
     res.json(response);
 }));
 // POST /api/gadgets - Create new gadget (admin only for now)
@@ -150,7 +158,10 @@ router.post('/', (0, errorHandler_1.asyncHandler)(async (req, res) => {
         });
     }
     logger_1.default.info('Gadget created:', { id: data.id, name: data.name });
-    const response = { data };
+    const response = {
+        success: true,
+        data
+    };
     res.status(201).json(response);
 }));
 // GET /api/gadgets/brands - Get available brands
@@ -168,7 +179,10 @@ router.get('/meta/brands', (0, errorHandler_1.asyncHandler)(async (req, res) => 
         });
     }
     const brands = [...new Set(data?.map(item => item.brand).filter(Boolean))];
-    const response = { data: brands };
+    const response = {
+        success: true,
+        data: brands
+    };
     res.json(response);
 }));
 exports.default = router;

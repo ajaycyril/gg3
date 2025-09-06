@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '@/lib/auth'
+import { api } from '@/lib/api'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 
@@ -47,27 +48,29 @@ export default function AdaptiveChat({ onRecommendationsReceived, onUIConfigUpda
 
   // Initialize chat with adaptive greeting
   useEffect(() => {
-    if (user && messages.length === 0) {
+    if (messages.length === 0) {
       initializeChat()
     }
-  }, [user])
+  }, [])
 
   const initializeChat = async () => {
     try {
-      // Get user's UI configuration
-      const configResponse = await fetch('/api/ai/ui-config', {
-        credentials: 'include'
-      })
-      const configData = await configResponse.json()
+      // Get UI configuration from the working API
+      const configResponse = await api.getUIConfiguration(user?.id || 'anonymous')
       
-      if (configData.success) {
-        setUiConfig(configData.data.configuration)
-        setExpertiseLevel(configData.data.user_expertise)
-        onUIConfigUpdate?.(configData.data.configuration)
+      if (configResponse.success) {
+        setUiConfig(configResponse.data)
+        onUIConfigUpdate?.(configResponse.data)
+        
+        // Extract expertise level from UI config or default
+        const complexity = configResponse.data?.interaction?.chat_complexity || 'conversational'
+        const detectedExpertise = complexity === 'technical' ? 'expert' : 
+                                 complexity === 'simple' ? 'beginner' : 'intermediate'
+        setExpertiseLevel(detectedExpertise)
       }
 
       // Set adaptive greeting based on expertise level
-      const greeting = getAdaptiveGreeting(configData.data.user_expertise || 'intermediate')
+      const greeting = getAdaptiveGreeting(expertiseLevel)
       setMessages([{
         role: 'assistant',
         content: greeting,
@@ -112,49 +115,40 @@ export default function AdaptiveChat({ onRecommendationsReceived, onUIConfigUpda
     setIsLoading(true)
 
     try {
-      const response = await fetch('/api/ai/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          message: message.trim(),
-          sessionId,
-          context: {
-            phase: messages.length <= 2 ? 'discovery' : 'refinement',
-            expertise_level: expertiseLevel
-          }
-        })
+      // Use the new API client
+      const response = await api.sendChatMessage(message.trim(), {
+        userId: user?.id || 'anonymous',
+        sessionId,
+        context: {
+          phase: messages.length <= 2 ? 'discovery' : 'refinement',
+          expertise_level: expertiseLevel
+        }
       })
 
-      const data = await response.json()
-
-      if (data.success) {
+      if (response.success) {
         const aiMessage: ChatMessage = {
           role: 'assistant',
-          content: data.data.response,
-          timestamp: new Date().toISOString(),
-          complexity: data.data.metadata.complexity_level
+          content: response.data.response,
+          timestamp: new Date().toISOString()
         }
 
         setMessages(prev => [...prev, aiMessage])
-        setSessionId(data.data.sessionId)
-        setSuggestedActions(data.data.suggestedActions || [])
+        setSessionId(response.data.sessionId)
+        setSuggestedActions(response.data.suggestedActions || [])
         
         // Update UI configuration if changed
-        if (data.data.uiConfiguration) {
-          setUiConfig(data.data.uiConfiguration)
-          onUIConfigUpdate?.(data.data.uiConfiguration)
+        if (response.data.uiConfiguration) {
+          setUiConfig(response.data.uiConfiguration)
+          onUIConfigUpdate?.(response.data.uiConfiguration)
         }
 
         // Handle recommendations
-        if (data.data.recommendations && data.data.recommendations.length > 0) {
-          onRecommendationsReceived?.(data.data.recommendations)
+        if (response.data.recommendations && response.data.recommendations.length > 0) {
+          onRecommendationsReceived?.(response.data.recommendations)
         }
 
       } else {
-        throw new Error(data.error || 'Failed to get AI response')
+        throw new Error('Failed to get AI response')
       }
 
     } catch (error) {
@@ -168,31 +162,21 @@ export default function AdaptiveChat({ onRecommendationsReceived, onUIConfigUpda
     } finally {
       setIsLoading(false)
     }
-  }, [isLoading, sessionId, expertiseLevel, messages.length, onRecommendationsReceived, onUIConfigUpdate])
+  }, [isLoading, sessionId, expertiseLevel, messages.length, onRecommendationsReceived, onUIConfigUpdate, user?.id])
 
   const handleSuggestedAction = (action: any) => {
-    if (action.type === 'ask_question') {
-      sendMessage(action.content)
-    } else if (action.type === 'refine_search') {
-      sendMessage(`I want to ${action.content}`)
+    if (action.type === 'question') {
+      sendMessage(action.text)
+    } else if (action.type === 'action') {
+      sendMessage(action.text)
     }
   }
 
+  // Remove the feedback API call that was causing issues
   const provideFeedback = async (messageIndex: number, feedbackType: string, rating?: number) => {
     try {
-      await fetch('/api/ai/feedback', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          session_id: sessionId,
-          turn_number: Math.floor(messageIndex / 2),
-          feedback_type: feedbackType,
-          rating
-        })
-      })
+      // For now, just log feedback locally - can be enhanced later
+      console.log('User feedback:', { messageIndex, feedbackType, rating, sessionId })
     } catch (error) {
       console.error('Failed to send feedback:', error)
     }
@@ -220,7 +204,7 @@ export default function AdaptiveChat({ onRecommendationsReceived, onUIConfigUpda
             {expertiseLevel === 'auto_detect' && '🤖 Adaptive Mode - Learning Your Style'}
           </p>
         </div>
-        {uiConfig?.interaction.enable_deep_dive_mode && (
+        {uiConfig?.interaction?.enable_deep_dive_mode && (
           <Button
             variant="outline"
             size="sm"

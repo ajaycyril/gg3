@@ -5,7 +5,14 @@
   "description": "🚀 Dynamic AI-Adaptive Laptop Intelligence Platform",
   "author": "GadgetGuru Team",
   "license": "MIT",
-  "keywords": ["ai", "adaptive-ui", "laptop-recommendations", "openai", "supabase", "nextjs"],
+  "keywords": [
+    "ai",
+    "adaptive-ui",
+    "laptop-recommendations",
+    "openai",
+    "supabase",
+    "nextjs"
+  ],
   "homepage": "https://gadgetguru-ai.vercel.app",
   "repository": {
     "type": "git",
@@ -37,21 +44,27 @@
   },
   "dependencies": {
     "next": "^14.0.0",
+    "openai": "^4.20.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "@turbo/gen": "^1.10.7",
     "@types/node": "^20.0.0",
-    "prettier": "^3.0.0",
     "husky": "^8.0.0",
     "lint-staged": "^15.0.0",
-    "typescript": "^5.0.0",
-    "@turbo/gen": "^1.10.7",
-    "turbo": "^1.10.7"
+    "prettier": "^3.0.0",
+    "turbo": "^1.10.7",
+    "typescript": "^5.0.0"
   },
   "lint-staged": {
-    "*.{js,ts,tsx}": ["prettier --write", "eslint --fix"],
-    "*.{json,md}": ["prettier --write"]
+    "*.{js,ts,tsx}": [
+      "prettier --write",
+      "eslint --fix"
+    ],
+    "*.{json,md}": [
+      "prettier --write"
+    ]
   },
   "packageManager": "pnpm@8.6.10",
   "engines": {

@@ -1,58 +1,53 @@
-import express, { Application } from 'express';
+import express, { Express, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
-import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
-import * as Sentry from '@sentry/node';
+import morgan from 'morgan';
 import dotenv from 'dotenv';
 import path from 'path';
 
-// Load environment variables with explicit path
-dotenv.config({ path: path.resolve(__dirname, '../.env') });
+// Import shared types
+import { AppError } from '@gadgetguru/shared';
 
-import { errorHandler, notFoundHandler } from './middleware/errorHandler';
-import { authMiddleware } from './middleware/auth';
+// Import middleware and routes
 import logger from './utils/logger';
-
-// Routes
-import gadgetsRoutes from './routes/gadgets';
+import { errorHandler } from './middleware/errorHandler';
+import { tenantMiddleware } from './middleware/tenant';
 import authRoutes from './routes/auth';
-import recommendationsRoutes from './routes/recommendations';
-import usersRoutes from './routes/users';
+import gadgetRoutes from './routes/gadgets';
+import recommendationRoutes from './routes/recommendations';
+import userRoutes from './routes/users';
 import feedbackRoutes from './routes/feedback';
 import healthRoutes from './routes/health';
-import dynamicAIRoutes from './routes/dynamic-ai';
+import dynamicAiRoutes from './routes/dynamic-ai';
 
-// Initialize Sentry for V0 deployment
-if (process.env.SENTRY_DSN) {
-  Sentry.init({
-    dsn: process.env.SENTRY_DSN,
-    environment: process.env.NODE_ENV || 'development',
-    tracesSampleRate: process.env.NODE_ENV === 'production' ? 0.1 : 1.0,
-    // V0 serverless optimizations
-    integrations: [
-      new Sentry.Integrations.Http({ tracing: true }),
-      new Sentry.Integrations.Express({ app: undefined }), // Will set app later
-    ],
-    beforeSend(event) {
-      // Filter out noisy serverless events
-      if (event.exception?.values?.[0]?.value?.includes('SIGTERM')) {
-        return null;
-      }
-      return event;
-    }
-  });
+// Load environment variables
+dotenv.config({ path: path.resolve(__dirname, '../.env') });
+
+// Validate required environment variables
+if (!process.env.OPENAI_API_KEY) {
+  console.error('❌ OPENAI_API_KEY is required');
+  process.exit(1);
 }
 
-const app: Application = express();
+if (!process.env.SUPABASE_URL || !process.env.SUPABASE_ANON_KEY) {
+  console.error('❌ Supabase configuration is required');
+  process.exit(1);
+}
+
+console.log('✅ Environment variables loaded successfully');
+
+const app: Express = express();
 const port = process.env.PORT || 3002;
-
-// V0 serverless optimizations - minimize middleware for cold starts
 const isProduction = process.env.NODE_ENV === 'production';
-const isVercel = process.env.VERCEL === '1';
 
-// V0-optimized security middleware
+// Trust proxy in production
+if (isProduction) {
+  app.set('trust proxy', 1);
+}
+
+// Security headers
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
@@ -60,220 +55,89 @@ app.use(helmet({
       styleSrc: ["'self'", "'unsafe-inline'"],
       scriptSrc: ["'self'"],
       imgSrc: ["'self'", "data:", "https:"],
-      connectSrc: ["'self'", "https://*.supabase.co", "https://*.vercel.app"]
+      connectSrc: ["'self'", "https:"],
     },
-  },
-  crossOriginEmbedderPolicy: false, // V0 compatibility
+  }
 }));
 
-// V0-optimized rate limiting with memory store for serverless
+// Rate limiting
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: isProduction ? (isVercel ? 200 : 100) : 1000, // Higher limit for V0
-  message: {
-    error: 'Too many requests from this IP, please try again later.',
-    retryAfter: '15 minutes'
-  },
-  standardHeaders: true,
-  legacyHeaders: false,
-  // V0 serverless optimization
-  skip: (req) => {
-    // Skip rate limiting for health checks in serverless
-    return req.path.startsWith('/health');
-  },
-  keyGenerator: (req) => {
-    // Use x-forwarded-for for V0 deployment
-    return req.headers['x-forwarded-for'] as string || req.ip;
-  }
+  windowMs: 15 * 60 * 1000,
+  max: isProduction ? 100 : 1000,
+  message: { error: 'Too many requests, please try again later' }
 });
-
 app.use(limiter);
 
-// V0-optimized body parsing with smaller limits for serverless
-app.use(express.json({ 
-  limit: isVercel ? '1mb' : '10mb' // Smaller limit for V0
-}));
-app.use(express.urlencoded({ 
-  extended: true, 
-  limit: isVercel ? '1mb' : '10mb' 
-}));
-
-// V0-optimized compression
-app.use(compression({
-  level: isVercel ? 1 : 6, // Lower compression for faster cold starts
-  threshold: 1024,
-  filter: (req, res) => {
-    if (req.headers['x-no-compression']) return false;
-    return compression.filter(req, res);
-  }
-}));
-
-// V0-optimized CORS configuration
+// Compression and CORS
+app.use(compression());
 app.use(cors({
-  origin: (origin, callback) => {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-    
-    // V0 specific origins
-    const v0Origins = [
-      /https:\/\/.*\.vercel\.app$/,
-      /https:\/\/.*\.v0\.dev$/,
-      /https:\/\/gadgetguru.*\.vercel\.app$/
-    ];
-    
-    // Check V0 patterns first
-    for (const pattern of v0Origins) {
-      if (pattern.test(origin)) {
-        return callback(null, true);
-      }
-    }
-    
-    // Allow localhost on any port for development
-    if (origin.startsWith('http://localhost:') || origin.startsWith('https://localhost:')) {
-      return callback(null, true);
-    }
-    
-    // Allow configured origins
-    const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000'];
-    if (allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    }
-    
-    // Reject other origins
-    callback(new Error('Not allowed by CORS'));
-  },
+  origin: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000'],
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-vercel-id'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key', 'user-id']
 }));
 
-// V0-optimized logging - disable in serverless production
-if (!isVercel && process.env.NODE_ENV !== 'test') {
+// Body parsing
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true }));
+
+// Request logging
+if (process.env.NODE_ENV !== 'test') {
   app.use(morgan('combined', {
-    stream: { write: (message) => logger.info(message.trim()) }
+    stream: { write: (message: string) => logger.info(message.trim()) }
   }));
 }
 
-// Sentry request handler for V0
-if (process.env.SENTRY_DSN) {
-  app.use(Sentry.Handlers.requestHandler());
-  app.use(Sentry.Handlers.tracingHandler());
-}
+// Health endpoint (always public)
+app.use('/api/health', healthRoutes);
 
-// Health check (before auth) - optimized for V0
-app.use('/health', healthRoutes);
-
-// V0 serverless function optimization - lazy load auth middleware
-app.use('/api/recommendations', (req, res, next) => {
-  // Only apply auth middleware for non-OPTIONS requests
-  if (req.method === 'OPTIONS') return next();
-  return authMiddleware(req, res, next);
-});
-app.use('/api/users', (req, res, next) => {
-  if (req.method === 'OPTIONS') return next();
-  return authMiddleware(req, res, next);
-});
-app.use('/api/feedback', (req, res, next) => {
-  if (req.method === 'OPTIONS') return next();
-  return authMiddleware(req, res, next);
+// Root endpoint
+app.get('/', (req: Request, res: Response) => {
+  res.json({
+    message: '🚀 GadgetGuru AI API',
+    version: '2.0.0',
+    environment: process.env.NODE_ENV || 'development',
+    health: '/api/health'
+  });
 });
 
-// API Routes - organized for V0 performance
+// Public routes (no tenant middleware)
 app.use('/api/auth', authRoutes);
-app.use('/api/gadgets', gadgetsRoutes);
-app.use('/api/recommendations', recommendationsRoutes);
-app.use('/api/users', usersRoutes);
-app.use('/api/feedback', feedbackRoutes);
-app.use('/api/ai', dynamicAIRoutes); // Dynamic AI endpoints
+app.use('/api/ai', dynamicAiRoutes);  // AI endpoints remain public
+app.use('/api/gadgets', gadgetRoutes);  // Make gadgets public for basic browsing
 
-// V0-optimized API documentation
-app.get('/docs', (req, res) => {
-  res.json({
-    message: 'GadgetGuru API Documentation',
-    version: '1.0.0',
-    deployed_on: 'Vercel V0',
-    endpoints: {
-      health: '/health',
-      auth: '/api/auth',
-      gadgets: '/api/gadgets',
-      recommendations: '/api/recommendations',
-      users: '/api/users',
-      feedback: '/api/feedback',
-    },
-    v0_optimizations: [
-      'Serverless connection pooling',
-      'Edge runtime compatibility',
-      'Automatic retries with circuit breaker',
-      'Memory-optimized pagination',
-      'V0-specific CORS patterns'
-    ]
-  });
-});
+// Protected routes with tenant middleware (for monetization)
+app.use('/api/recommendations', tenantMiddleware, recommendationRoutes);
+app.use('/api/users', tenantMiddleware, userRoutes);
+app.use('/api/feedback', tenantMiddleware, feedbackRoutes);
 
-// Root endpoint optimized for V0
-app.get('/', (req, res) => {
-  res.json({
-    message: 'GadgetGuru API Server',
-    version: '1.0.0',
-    status: 'healthy',
-    deployment: isVercel ? 'Vercel V0 Serverless' : 'Development',
-    environment: process.env.NODE_ENV,
-    timestamp: new Date().toISOString(),
-    endpoints: {
-      health: '/health',
-      docs: '/docs',
-      auth: '/api/auth',
-      gadgets: '/api/gadgets',
-      recommendations: '/api/recommendations',
-      users: '/api/users',
-      feedback: '/api/feedback',
-    },
-  });
-});
-
-// Sentry error handler for V0 (must be before other error handlers)
-if (process.env.SENTRY_DSN) {
-  app.use(Sentry.Handlers.errorHandler({
-    shouldHandleError(error) {
-      // Only send 5xx errors to Sentry in production
-      return error.status >= 500;
-    }
-  }));
-}
-
-// Error handling middleware (must be last)
-app.use(notFoundHandler);
+// Error handlers
 app.use(errorHandler);
 
-// V0 serverless export (no server listen in serverless)
-if (isVercel) {
-  // Export for Vercel serverless functions
-  export default app;
-} else {
-  // Traditional server for development
-  const server = app.listen(port, () => {
-    logger.info(`🚀 GadgetGuru API server running on port ${port}`);
-    logger.info(`📚 API Documentation: http://localhost:${port}/docs`);
-    logger.info(`🏥 Health Check: http://localhost:${port}/health`);
-    logger.info(`🎯 Deployment: ${isVercel ? 'V0 Serverless' : 'Development'}`);
+// 404 handler
+app.use('*', (req: Request, res: Response) => {
+  res.status(404).json({
+    error: 'Endpoint not found',
+    path: req.originalUrl
   });
+});
 
-  // Graceful shutdown for development
-  process.on('SIGTERM', () => {
-    logger.info('SIGTERM received, shutting down gracefully');
-    server.close(() => {
-      logger.info('Server closed');
-      process.exit(0);
-    });
+// Start server
+const server = app.listen(port, () => {
+  logger.info(`🚀 GadgetGuru AI API running on port ${port}`);
+  logger.info(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
+});
+
+// Graceful shutdown
+const shutdown = () => {
+  logger.info('Shutting down gracefully...');
+  server.close(() => {
+    logger.info('Server closed');
+    process.exit(0);
   });
+};
 
-  process.on('SIGINT', () => {
-    logger.info('SIGINT received, shutting down gracefully');
-    server.close(() => {
-      logger.info('Server closed');
-      process.exit(0);
-    });
-  });
+process.on('SIGTERM', shutdown);
+process.on('SIGINT', shutdown);
 
-  export default app;
-}
+export default app;

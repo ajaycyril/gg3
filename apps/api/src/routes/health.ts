@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { Database } from '@gadgetguru/shared';
 import logger from '../utils/logger';
 
-const router = Router();
+const router: Router = Router();
 
 const supabaseUrl = process.env.SUPABASE_URL!;
 const supabaseAnonKey = process.env.SUPABASE_ANON_KEY!;

@@ -10,7 +10,7 @@ import { asyncHandler } from '../middleware/errorHandler';
 import logger from '../utils/logger';
 import Joi from 'joi';
 
-const router = Router();
+const router: Router = Router();
 
 // Validation schemas
 const searchSchema = Joi.object({
@@ -102,11 +102,16 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
   }
 
   const response: PaginatedResponse<Gadget> = {
+    success: true,
     data: data || [],
-    total: count || 0,
-    page: Math.floor(offset / limit) + 1,
-    limit,
-    hasMore: (count || 0) > offset + limit,
+    pagination: {
+      total: count || 0,
+      page: Math.floor(offset / limit) + 1,
+      limit,
+      offset,
+      totalPages: Math.ceil((count || 0) / limit),
+      hasMore: (count || 0) > offset + limit,
+    },
   };
 
   res.json(response);
@@ -149,7 +154,10 @@ router.get('/:id', asyncHandler(async (req: Request, res: Response) => {
     });
   }
 
-  const response: ApiResponse<Gadget> = { data };
+  const response: ApiResponse<Gadget> = { 
+    success: true, 
+    data 
+  };
   res.json(response);
 }));
 
@@ -180,7 +188,10 @@ router.post('/', asyncHandler(async (req: Request, res: Response) => {
 
   logger.info('Gadget created:', { id: data.id, name: data.name });
   
-  const response: ApiResponse<Gadget> = { data };
+  const response: ApiResponse<Gadget> = { 
+    success: true,
+    data 
+  };
   res.status(201).json(response);
 }));
 
@@ -202,7 +213,10 @@ router.get('/meta/brands', asyncHandler(async (req: Request, res: Response) => {
 
   const brands = [...new Set(data?.map(item => item.brand).filter(Boolean))] as string[];
   
-  const response: ApiResponse<string[]> = { data: brands };
+  const response: ApiResponse<string[]> = { 
+    success: true,
+    data: brands 
+  };
   res.json(response);
 }));
 

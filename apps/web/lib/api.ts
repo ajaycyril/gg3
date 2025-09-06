@@ -1,6 +1,7 @@
 import { Gadget, SearchFilters, PaginatedResponse, ApiResponse, Recommendation, User, UserPreferences, Feedback } from '@/lib/types'
 
-const API_BASE = process.env.NODE_ENV === 'production' ? '' : ''
+// Use explicit base for server API when provided; fallback to localhost:3002 for development
+const API_BASE = process.env.NEXT_PUBLIC_API_URL?.trim() || 'http://localhost:3002'
 
 export const api = {
   async getGadgets(filters: SearchFilters = {}): Promise<PaginatedResponse<Gadget>> {
@@ -280,6 +281,77 @@ export const api = {
 
     if (!response.ok) {
       throw new Error(`Failed to perform health check: ${response.statusText}`)
+    }
+
+    return response.json()
+  },
+
+  // AI Chat and Dynamic UI endpoints
+  async sendChatMessage(message: string, options: {
+    userId?: string
+    sessionId?: string
+    context?: Record<string, any>
+  } = {}): Promise<ApiResponse<{
+    response: string
+    sessionId: string
+    suggestedActions: any[]
+    uiConfiguration: Record<string, any>
+    recommendations?: any[]
+  }>> {
+    const response = await fetch(`${API_BASE}/api/ai/chat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'user-id': options.userId || 'anonymous'
+      },
+      body: JSON.stringify({
+        message,
+        sessionId: options.sessionId,
+        context: options.context
+      }),
+    })
+
+    if (!response.ok) {
+      throw new Error(`AI chat failed: ${response.statusText}`)
+    }
+
+    return response.json()
+  },
+
+  async getUIConfiguration(userId?: string, context: Record<string, any> = {}): Promise<ApiResponse<Record<string, any>>> {
+    const params = new URLSearchParams()
+    if (Object.keys(context).length > 0) {
+      params.append('context', JSON.stringify(context))
+    }
+
+    const response = await fetch(`${API_BASE}/api/ai/ui-config?${params}`, {
+      headers: {
+        'user-id': userId || 'anonymous'
+      },
+    })
+
+    if (!response.ok) {
+      throw new Error(`Failed to get UI config: ${response.statusText}`)
+    }
+
+    return response.json()
+  },
+
+  async getAIRecommendations(preferences: Record<string, any> = {}, context: Record<string, any> = {}, userId?: string): Promise<ApiResponse<any[]>> {
+    const response = await fetch(`${API_BASE}/api/ai/recommendations`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'user-id': userId || 'anonymous'
+      },
+      body: JSON.stringify({
+        preferences,
+        context
+      }),
+    })
+
+    if (!response.ok) {
+      throw new Error(`Failed to get AI recommendations: ${response.statusText}`)
     }
 
     return response.json()

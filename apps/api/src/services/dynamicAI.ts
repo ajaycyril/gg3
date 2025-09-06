@@ -1,510 +1,306 @@
-// Dynamic AI Service for Adaptive User Interfaces
-// OpenAI-powered conversation and UI adaptation engine
-
+import { randomUUID } from 'node:crypto';
 import OpenAI from 'openai';
 import logger from '../utils/logger';
-import { db } from '../db/supabaseClient';
+import { supabase } from '../db/supabaseClient';
 
-interface UserProfile {
-  expertise_level: string;
-  interface_complexity_preference: number;
-  preferred_interaction_style: string;
-  learned_preferences: Record<string, any>;
-  technical_interests: Record<string, any>;
-  spec_detail_preference: number;
-}
-
-interface ConversationSession {
+interface DynamicUIElement {
+  type: 'button' | 'slider' | 'multiselect' | 'text' | 'quickaction';
   id: string;
-  user_id: string;
-  session_goal: string;
-  current_phase: string;
-  complexity_level: number;
-  conversation_context: Record<string, any>;
-  user_preferences_extracted: Record<string, any>;
+  label: string;
+  options?: string[] | { min: number; max: number; step: number };
+  action?: string;
+  priority: number;
 }
 
-interface AdaptiveRecommendation {
-  laptop_id: string;
-  overall_score: number;
-  ai_reasoning: string;
-  reasoning_complexity_level: number;
-  personalized_highlights: any[];
-  budget_fit_explanation: string;
-  use_case_alignment: Record<string, any>;
+interface ConversationState {
+  phase: 'initial' | 'discovery' | 'filtering' | 'recommendation' | 'refinement';
+  collectedData: {
+    budget?: { min: number; max: number };
+    purpose?: string[];
+    brands?: string[];
+    specs?: Record<string, any>;
+    priorities?: string[];
+  };
+  nextQuery?: {
+    sql: string;
+    params: any[];
+  };
 }
 
 class DynamicAIService {
   private openai: OpenAI;
-  private readonly MODEL_GPT4 = 'gpt-4-turbo-preview';
-  private readonly MODEL_GPT35 = 'gpt-3.5-turbo';
-  private readonly EMBEDDING_MODEL = 'text-embedding-3-large';
+  private readonly MODEL_GPT4 = 'gpt-4o';
+  private conversations: Map<string, ConversationState> = new Map();
 
   constructor() {
+    if (!process.env.OPENAI_API_KEY) {
+      throw new Error('OpenAI API key is required');
+    }
+
+    console.log('🔑 DynamicAI constructor - OpenAI API Key:', process.env.OPENAI_API_KEY.substring(0, 20) + '...');
+    console.log('🔑 DynamicAI constructor - Key length:', process.env.OPENAI_API_KEY.length);
+
     this.openai = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY,
     });
+
+    logger.info('DynamicAI service initialized');
   }
 
-  // Dynamic conversation management with adaptive complexity
   async processConversation(
     userId: string,
     userInput: string,
-    sessionId?: string
+    sessionId?: string,
+    context?: Record<string, any>
   ): Promise<{
     response: string;
     sessionId: string;
-    suggestedActions: any[];
-    uiConfiguration: Record<string, any>;
-    recommendations?: AdaptiveRecommendation[];
+    dynamicUI: DynamicUIElement[];
+    recommendations?: any[];
+    databaseQuery?: any;
   }> {
     try {
-      // Get or create user profile
-      const userProfile = await this.getUserProfile(userId);
-      
-      // Get or create conversation session
-      const session = sessionId 
-        ? await this.getConversationSession(sessionId)
-        : await this.createConversationSession(userId, userInput);
-
-      // Determine conversation complexity based on user input and profile
-      const complexity = await this.determineConversationComplexity(userInput, userProfile, session);
-      
-      // Generate AI response with adaptive complexity
-      const aiResponse = await this.generateAdaptiveResponse(
-        userInput,
-        userProfile,
-        session,
-        complexity
-      );
-
-      // Update conversation session
-      await this.updateConversationSession(session.id, {
-        conversation_context: {
-          ...session.conversation_context,
-          turns: [...(session.conversation_context.turns || []), {
-            user: userInput,
-            ai: aiResponse.response,
-            timestamp: new Date().toISOString(),
-            complexity: complexity
-          }]
-        },
-        complexity_level: complexity,
-        user_preferences_extracted: {
-          ...session.user_preferences_extracted,
-          ...aiResponse.extractedPreferences
-        }
-      });
-
-      // Generate dynamic UI configuration
-      const uiConfiguration = await this.generateDynamicUI(userProfile, session, aiResponse.context);
-
-      // Generate recommendations if appropriate
-      let recommendations: AdaptiveRecommendation[] = [];
-      if (aiResponse.shouldGenerateRecommendations) {
-        recommendations = await this.generateAdaptiveRecommendations(
-          userProfile,
-          session,
-          aiResponse.extractedPreferences
-        );
-      }
-
-      // Log conversation for learning
-      await this.logConversationTurn(session.id, userId, userInput, aiResponse.response, complexity);
-
-      return {
-        response: aiResponse.response,
-        sessionId: session.id,
-        suggestedActions: aiResponse.suggestedActions || [],
-        uiConfiguration,
-        recommendations
+      const currentSessionId = sessionId || randomUUID();
+      let conversationState = this.conversations.get(currentSessionId) || {
+        phase: 'initial',
+        collectedData: {},
       };
 
-    } catch (error) {
-      logger.error('Dynamic AI conversation processing failed:', error);
-      throw error;
-    }
-  }
+      console.log('🤖 Processing dynamic conversation...');
 
-  // Adaptive UI configuration generation
-  async generateDynamicUI(
-    userProfile: UserProfile,
-    session: ConversationSession,
-    context: Record<string, any>
-  ): Promise<Record<string, any>> {
-    try {
-      const prompt = this.buildUIConfigPrompt(userProfile, session, context);
+      // Get current gadgets from database to inform AI
+      const { data: gadgets } = await supabase
+        .from('gadgets')
+        .select('*')
+        .limit(10);
+
+      // Create AI prompt for dynamic interface generation
+      const systemPrompt = this.buildDynamicSystemPrompt(conversationState, gadgets || []);
       
       const response = await this.openai.chat.completions.create({
-        model: this.MODEL_GPT35, // Faster for UI config
-        messages: [
-          {
-            role: 'system',
-            content: 'You are a UI/UX expert that generates adaptive interface configurations based on user expertise and preferences. Return only valid JSON.'
-          },
-          {
-            role: 'user',
-            content: prompt
-          }
-        ],
-        temperature: 0.3,
-        max_tokens: 1500
-      });
-
-      const uiConfig = JSON.parse(response.choices[0].message.content || '{}');
-      
-      // Save UI configuration to database
-      await this.saveUIConfiguration(userProfile.user_id, uiConfig);
-      
-      return uiConfig;
-
-    } catch (error) {
-      logger.error('Dynamic UI generation failed:', error);
-      // Return safe fallback configuration
-      return this.getFallbackUIConfig(userProfile);
-    }
-  }
-
-  // Determine conversation complexity dynamically
-  private async determineConversationComplexity(
-    userInput: string,
-    userProfile: UserProfile,
-    session: ConversationSession
-  ): Promise<number> {
-    try {
-      const prompt = `Analyze this user input for technical complexity level (1-10 scale):
-      
-User Input: "${userInput}"
-User Expertise Level: ${userProfile.expertise_level}
-Previous Complexity Preference: ${userProfile.interface_complexity_preference}
-Current Session Phase: ${session.current_phase}
-
-Technical indicators to consider:
-- Mentions of specific technical terms (CPU models, RAM specifications, benchmark scores)
-- Questions about component details vs general recommendations
-- Comparison requests with technical details
-- Budget vs performance optimization discussions
-
-Return only a single number from 1-10 where:
-1-3: Basic/Simple (general recommendations, budget focus)
-4-6: Intermediate (some technical details, feature comparisons)
-7-10: Advanced/Expert (detailed specifications, benchmark analysis)`;
-
-      const response = await this.openai.chat.completions.create({
-        model: this.MODEL_GPT35,
-        messages: [{ role: 'user', content: prompt }],
-        temperature: 0.1,
-        max_tokens: 10
-      });
-
-      const complexity = parseInt(response.choices[0].message.content?.trim() || '5');
-      return Math.max(1, Math.min(10, complexity));
-
-    } catch (error) {
-      logger.error('Complexity determination failed:', error);
-      return userProfile.interface_complexity_preference || 5;
-    }
-  }
-
-  // Generate adaptive AI response
-  private async generateAdaptiveResponse(
-    userInput: string,
-    userProfile: UserProfile,
-    session: ConversationSession,
-    complexity: number
-  ): Promise<{
-    response: string;
-    extractedPreferences: Record<string, any>;
-    shouldGenerateRecommendations: boolean;
-    context: Record<string, any>;
-    suggestedActions: any[];
-  }> {
-    try {
-      const systemPrompt = this.buildAdaptiveSystemPrompt(userProfile, session, complexity);
-      const userPrompt = this.buildUserPrompt(userInput, session);
-
-      const response = await this.openai.chat.completions.create({
-        model: complexity >= 7 ? this.MODEL_GPT4 : this.MODEL_GPT35,
+        model: this.MODEL_GPT4,
         messages: [
           { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt }
+          { role: 'user', content: userInput }
         ],
         temperature: 0.7,
-        max_tokens: complexity >= 7 ? 2000 : 1200,
+        max_tokens: 2000,
         functions: [
           {
-            name: 'extract_user_preferences',
-            description: 'Extract user preferences from conversation',
+            name: 'generate_dynamic_interface',
+            description: 'Generate dynamic UI elements and database queries based on user input',
             parameters: {
               type: 'object',
               properties: {
-                budget_range: { type: 'string' },
-                use_cases: { type: 'array', items: { type: 'string' } },
-                brand_preferences: { type: 'array', items: { type: 'string' } },
-                technical_requirements: { type: 'object' },
-                should_generate_recommendations: { type: 'boolean' }
-              }
+                response_text: { type: 'string', description: 'AI response to user' },
+                phase: { type: 'string', enum: ['initial', 'discovery', 'filtering', 'recommendation', 'refinement'] },
+                ui_elements: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      type: { type: 'string', enum: ['button', 'slider', 'multiselect', 'quickaction'] },
+                      id: { type: 'string' },
+                      label: { type: 'string' },
+                      options: { type: 'array' },
+                      action: { type: 'string' },
+                      priority: { type: 'number' }
+                    }
+                  }
+                },
+                collected_data: {
+                  type: 'object',
+                  properties: {
+                    budget: { type: 'object' },
+                    purpose: { type: 'array' },
+                    brands: { type: 'array' },
+                    specs: { type: 'object' },
+                    priorities: { type: 'array' }
+                  }
+                },
+                database_filter: {
+                  type: 'object',
+                  properties: {
+                    price_min: { type: 'number' },
+                    price_max: { type: 'number' },
+                    brands: { type: 'array' },
+                    specs_filter: { type: 'object' }
+                  }
+                }
+              },
+              required: ['response_text', 'phase', 'ui_elements']
             }
           }
         ],
-        function_call: 'auto'
+        function_call: { name: 'generate_dynamic_interface' }
       });
 
-      const aiResponse = response.choices[0].message.content || '';
-      let extractedPreferences = {};
-      let shouldGenerateRecommendations = false;
+      console.log('✅ OpenAI function call successful');
 
-      // Handle function calls for preference extraction
-      if (response.choices[0].message.function_call) {
-        const functionArgs = JSON.parse(response.choices[0].message.function_call.arguments || '{}');
-        extractedPreferences = functionArgs;
-        shouldGenerateRecommendations = functionArgs.should_generate_recommendations || false;
+      const functionCall = response.choices[0]?.message?.function_call;
+      if (!functionCall || !functionCall.arguments) {
+        throw new Error('No function call response from AI');
       }
 
-      // Generate suggested actions based on complexity and context
-      const suggestedActions = await this.generateSuggestedActions(
-        userInput,
-        session,
-        complexity,
-        extractedPreferences
-      );
+      const aiResponse = JSON.parse(functionCall.arguments);
+      
+      // Update conversation state
+      conversationState.phase = aiResponse.phase;
+      if (aiResponse.collected_data) {
+        conversationState.collectedData = { ...conversationState.collectedData, ...aiResponse.collected_data };
+      }
+      this.conversations.set(currentSessionId, conversationState);
+
+      // Generate recommendations if we have enough data
+      let recommendations: any[] = [];
+      if (aiResponse.phase === 'recommendation' && aiResponse.database_filter) {
+        recommendations = await this.queryAndRecommend(aiResponse.database_filter, conversationState.collectedData);
+      }
 
       return {
-        response: aiResponse,
-        extractedPreferences,
-        shouldGenerateRecommendations,
-        context: { complexity, phase: session.current_phase },
-        suggestedActions
+        response: aiResponse.response_text,
+        sessionId: currentSessionId,
+        dynamicUI: aiResponse.ui_elements || [],
+        recommendations,
+        databaseQuery: aiResponse.database_filter
       };
 
     } catch (error) {
-      logger.error('Adaptive response generation failed:', error);
-      throw error;
+      console.error('❌ Dynamic AI processing failed:', error);
+      logger.error('Dynamic AI conversation processing failed:', error);
+      
+      // Fallback response
+      return {
+        response: "I'm here to help you find the perfect laptop! What are you looking for?",
+        sessionId: sessionId || randomUUID(),
+        dynamicUI: [
+          { type: 'button', id: 'gaming', label: 'Gaming Laptop', action: 'select_gaming', priority: 1 },
+          { type: 'button', id: 'work', label: 'Work Laptop', action: 'select_work', priority: 2 },
+          { type: 'button', id: 'student', label: 'Student Laptop', action: 'select_student', priority: 3 }
+        ]
+      };
     }
   }
 
-  // Generate adaptive laptop recommendations
-  private async generateAdaptiveRecommendations(
-    userProfile: UserProfile,
-    session: ConversationSession,
-    extractedPreferences: Record<string, any>
-  ): Promise<AdaptiveRecommendation[]> {
+  private buildDynamicSystemPrompt(state: ConversationState, availableGadgets: any[]): string {
+    return `You are GadgetGuru AI, a dynamic laptop recommendation system. Your job is to:
+
+1. **Generate dynamic UI elements** based on user input and conversation phase
+2. **Collect user preferences systematically** 
+3. **Create database filters** to find matching laptops
+4. **Provide final recommendations** from actual database results
+
+**Current Conversation State:**
+- Phase: ${state.phase}
+- Collected Data: ${JSON.stringify(state.collectedData)}
+
+**Available Gadgets in Database:**
+${availableGadgets.slice(0, 5).map(g => `- ${g.name} (${g.brand}) - $${g.price}`).join('\n')}
+
+**Dynamic UI Generation Rules:**
+- **Initial Phase**: Show purpose buttons (Gaming, Work, Creative, Student)
+- **Discovery Phase**: Generate budget sliders, brand multiselect, feature toggles
+- **Filtering Phase**: Show refined options based on collected data
+- **Recommendation Phase**: Present final recommendations with reasoning
+
+**UI Element Types:**
+- \`button\`: Quick selection (Gaming, Work, etc.)
+- \`slider\`: Budget range, performance levels
+- \`multiselect\`: Brands, features, use cases
+- \`quickaction\`: "Show me options", "Filter by this", "More details"
+
+**Database Filtering:**
+Based on collected data, create filters for:
+- Price range (price_min, price_max)
+- Brand preferences (brands array)
+- Specs matching (specs_filter object)
+
+**Key Principles:**
+- Always generate 3-5 UI elements per response
+- Move conversation forward toward concrete recommendations
+- Use actual database data for final suggestions
+- Keep responses concise and actionable
+
+Generate your response using the function call format.`;
+  }
+
+  private async queryAndRecommend(filters: any, userData: any): Promise<any[]> {
     try {
-      // Get relevant laptops based on preferences
-      const laptops = await this.findRelevantLaptops(extractedPreferences, session);
-      
-      const recommendations: AdaptiveRecommendation[] = [];
+      console.log('🔍 Querying database with filters:', filters);
 
-      for (const laptop of laptops.slice(0, 5)) { // Top 5 recommendations
-        const reasoning = await this.generateLaptopReasoning(
-          laptop,
-          userProfile,
-          extractedPreferences,
-          session.complexity_level
-        );
+      let query = supabase
+        .from('gadgets')
+        .select('*');
 
-        const recommendation: AdaptiveRecommendation = {
-          laptop_id: laptop.id,
-          overall_score: this.calculateAdaptiveScore(laptop, extractedPreferences),
-          ai_reasoning: reasoning.explanation,
-          reasoning_complexity_level: session.complexity_level,
-          personalized_highlights: reasoning.highlights,
-          budget_fit_explanation: reasoning.budgetFit,
-          use_case_alignment: reasoning.useCaseAlignment
-        };
-
-        recommendations.push(recommendation);
-
-        // Save recommendation to database
-        await this.saveDynamicRecommendation(session.user_id, session.id, recommendation);
+      // Apply dynamic filters
+      if (filters.price_min) {
+        query = query.gte('price', filters.price_min);
+      }
+      if (filters.price_max) {
+        query = query.lte('price', filters.price_max);
+      }
+      if (filters.brands && filters.brands.length > 0) {
+        query = query.in('brand', filters.brands);
       }
 
-      return recommendations;
+      const { data: matchedGadgets, error } = await query.limit(5);
 
+      if (error) {
+        console.error('Database query error:', error);
+        return [];
+      }
+
+      console.log('📊 Found matched gadgets:', matchedGadgets?.length || 0);
+
+      // Use AI to rank and explain recommendations
+      if (matchedGadgets && matchedGadgets.length > 0) {
+        const rankingPrompt = `Based on user preferences: ${JSON.stringify(userData)}
+
+Available laptops:
+${matchedGadgets.map(g => `- ${g.name} (${g.brand}) - $${g.price} - Specs: ${JSON.stringify(g.specs)}`).join('\n')}
+
+Rank these laptops (1-3 top picks) and provide reasoning for each. Format as JSON array with:
+{
+  "laptop": [laptop object],
+  "rank": 1-3,
+  "score": 0.0-1.0,
+  "reasoning": "Why this is a good match",
+  "highlights": ["key feature 1", "key feature 2"]
+}`;
+
+        const rankingResponse = await this.openai.chat.completions.create({
+          model: 'gpt-3.5-turbo',
+          messages: [
+            { role: 'system', content: 'You are a laptop ranking expert. Return only valid JSON.' },
+            { role: 'user', content: rankingPrompt }
+          ],
+          temperature: 0.3,
+          max_tokens: 1000
+        });
+
+        const rankingText = rankingResponse.choices[0]?.message?.content || '[]';
+        try {
+          const rankings = JSON.parse(rankingText);
+          console.log('✅ AI rankings generated:', rankings.length);
+          return rankings;
+        } catch {
+          // Fallback to simple list if AI response isn't valid JSON
+          return matchedGadgets.slice(0, 3).map((gadget, index) => ({
+            laptop: gadget,
+            rank: index + 1,
+            score: 0.8 - (index * 0.1),
+            reasoning: `Good match for your requirements`,
+            highlights: ['Performance', 'Value', 'Reliability']
+          }));
+        }
+      }
+
+      return [];
     } catch (error) {
-      logger.error('Adaptive recommendations generation failed:', error);
+      console.error('❌ Query and recommend failed:', error);
       return [];
     }
   }
-
-  // Build adaptive system prompt based on user profile and complexity
-  private buildAdaptiveSystemPrompt(
-    userProfile: UserProfile,
-    session: ConversationSession,
-    complexity: number
-  ): string {
-    const basePrompt = `You are GadgetGuru AI, an expert laptop recommendation assistant. 
-
-User Profile:
-- Expertise Level: ${userProfile.expertise_level}
-- Preferred Interaction Style: ${userProfile.preferred_interaction_style}
-- Technical Interest Level: ${userProfile.spec_detail_preference}/10
-- Current Session Goal: ${session.session_goal || 'find_laptop'}
-
-Conversation Complexity Level: ${complexity}/10
-
-Instructions based on complexity level:`;
-
-    if (complexity <= 3) {
-      return basePrompt + `
-- Keep explanations simple and jargon-free
-- Focus on use cases and benefits rather than technical specs
-- Use analogies and everyday language
-- Emphasize value and practical considerations
-- Ask simple, non-technical questions to understand needs`;
-    } else if (complexity <= 6) {
-      return basePrompt + `
-- Provide moderate technical detail when relevant
-- Explain technical terms when first introduced
-- Balance features with practical benefits
-- Include some performance comparisons
-- Ask clarifying questions about specific use cases`;
-    } else {
-      return basePrompt + `
-- Provide detailed technical specifications and analysis
-- Use proper technical terminology
-- Include benchmark comparisons and performance metrics
-- Discuss component-level details when relevant
-- Address advanced considerations like upgradability, thermals, etc.`;
-    }
-  }
-
-  // Dynamic UI configuration building
-  private buildUIConfigPrompt(
-    userProfile: UserProfile,
-    session: ConversationSession,
-    context: Record<string, any>
-  ): string {
-    return `Generate a dynamic UI configuration JSON for this user:
-
-User Profile:
-- Expertise: ${userProfile.expertise_level}
-- Complexity Preference: ${userProfile.interface_complexity_preference}/10
-- Interaction Style: ${userProfile.preferred_interaction_style}
-- Technical Interests: ${JSON.stringify(userProfile.technical_interests)}
-
-Current Context:
-- Session Phase: ${session.current_phase}
-- Conversation Complexity: ${context.complexity}/10
-
-Generate JSON with these properties:
-{
-  "layout": {
-    "view_mode": "grid|list|cards",
-    "density": "compact|normal|spacious",
-    "sidebar_visible": boolean
-  },
-  "filters": {
-    "visible_filters": ["price", "brand", "specs", ...],
-    "advanced_filters_visible": boolean,
-    "filter_complexity": "simple|intermediate|advanced"
-  },
-  "content": {
-    "spec_detail_level": "basic|detailed|expert",
-    "show_benchmarks": boolean,
-    "show_technical_details": boolean,
-    "comparison_mode": "simple|detailed|technical"
-  },
-  "recommendations": {
-    "explanation_depth": "brief|moderate|detailed",
-    "show_alternatives": boolean,
-    "highlight_technical": boolean
-  },
-  "interaction": {
-    "chat_complexity": "conversational|technical|expert",
-    "suggested_questions_complexity": 1-10,
-    "enable_deep_dive_mode": boolean
-  }
-}`;
-  }
-
-  // Helper methods for database operations
-  private async getUserProfile(userId: string): Promise<UserProfile> {
-    const { data, error } = await db.executeSecureQuery(
-      'user_profiles',
-      'select',
-      (query) => query.eq('user_id', userId).single(),
-      { userId }
-    );
-
-    if (error && error.code !== 'PGRST116') { // Not found error
-      logger.error('Failed to get user profile:', error);
-    }
-
-    return data || {
-      user_id: userId,
-      expertise_level: 'auto_detect',
-      interface_complexity_preference: 5,
-      preferred_interaction_style: 'conversational',
-      learned_preferences: {},
-      technical_interests: {},
-      spec_detail_preference: 5
-    };
-  }
-
-  private async createConversationSession(userId: string, initialInput: string): Promise<ConversationSession> {
-    const sessionId = crypto.randomUUID();
-    
-    const sessionData = {
-      id: sessionId,
-      user_id: userId,
-      session_goal: await this.detectSessionGoal(initialInput),
-      current_phase: 'discovery',
-      complexity_level: 5,
-      conversation_context: {
-        initial_input: initialInput,
-        turns: []
-      },
-      user_preferences_extracted: {},
-      session_embedding: await this.generateEmbedding(initialInput)
-    };
-
-    const { error } = await db.executeSecureQuery(
-      'conversation_sessions',
-      'insert',
-      (query) => query.insert([sessionData]),
-      { userId },
-      true
-    );
-
-    if (error) {
-      logger.error('Failed to create conversation session:', error);
-      throw error;
-    }
-
-    return sessionData;
-  }
-
-  private async generateEmbedding(text: string): Promise<number[]> {
-    try {
-      const response = await this.openai.embeddings.create({
-        model: this.EMBEDDING_MODEL,
-        input: text,
-      });
-
-      return response.data[0].embedding;
-    } catch (error) {
-      logger.error('Embedding generation failed:', error);
-      return new Array(1024).fill(0); // Fallback zero embedding
-    }
-  }
-
-  private async detectSessionGoal(input: string): Promise<string> {
-    // Simple keyword-based detection (can be enhanced with AI)
-    const lowerInput = input.toLowerCase();
-    
-    if (lowerInput.includes('compare') || lowerInput.includes('vs') || lowerInput.includes('versus')) {
-      return 'compare_options';
-    } else if (lowerInput.includes('best') || lowerInput.includes('recommend')) {
-      return 'find_laptop';
-    } else if (lowerInput.includes('spec') || lowerInput.includes('benchmark') || lowerInput.includes('performance')) {
-      return 'deep_dive_specs';
-    }
-    
-    return 'find_laptop';
-  }
-
-  // ...existing code...
 }
 
-export const dynamicAI = new DynamicAIService();
+export default new DynamicAIService();

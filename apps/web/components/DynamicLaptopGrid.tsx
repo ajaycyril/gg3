@@ -7,23 +7,18 @@ import { Button } from '@/components/ui/Button'
 interface Laptop {
   id: string
   name: string
-  brand: string
-  model: string
-  price_usd: number
-  rating_overall: number
-  specs: {
-    processor: any
-    memory: any
-    storage: any
-    display: any
-    graphics: any
-  }
-  performance_scores?: any
-  use_cases?: any
-  pros?: string[]
-  cons?: string[]
-  ai_reasoning?: string
-  personalized_highlights?: string[]
+  brand: string | null
+  price: number | null
+  image_url: string | null
+  specs: Record<string, any> | null
+  reviews?: Array<{
+    id: string
+    author: string | null
+    rating: number | null
+    content: string
+    source: string | null
+  }>
+  created_at: string
 }
 
 interface UIConfiguration {
@@ -80,18 +75,13 @@ export default function DynamicLaptopGrid({
       switch (key) {
         case 'budget':
           filtered = filtered.filter(laptop => 
-            laptop.price_usd >= value.min && laptop.price_usd <= value.max
+            laptop.price && laptop.price >= value.min && laptop.price <= value.max
           )
           break
         case 'brand':
           if (value.length > 0) {
-            filtered = filtered.filter(laptop => value.includes(laptop.brand))
+            filtered = filtered.filter(laptop => laptop.brand && value.includes(laptop.brand))
           }
-          break
-        case 'use_case':
-          filtered = filtered.filter(laptop => 
-            laptop.use_cases && laptop.use_cases[value] > 0.5
-          )
           break
       }
     })
@@ -99,21 +89,21 @@ export default function DynamicLaptopGrid({
     // Apply sorting
     switch (sortBy) {
       case 'price_low':
-        filtered.sort((a, b) => a.price_usd - b.price_usd)
+        filtered.sort((a, b) => (a.price || 0) - (b.price || 0))
         break
       case 'price_high':
-        filtered.sort((a, b) => b.price_usd - a.price_usd)
+        filtered.sort((a, b) => (b.price || 0) - (a.price || 0))
         break
       case 'rating':
-        filtered.sort((a, b) => (b.rating_overall || 0) - (a.rating_overall || 0))
+        filtered.sort((a, b) => {
+          const aRating = a.reviews ? a.reviews.reduce((acc, r) => acc + (r.rating || 0), 0) / a.reviews.length : 0
+          const bRating = b.reviews ? b.reviews.reduce((acc, r) => acc + (r.rating || 0), 0) / b.reviews.length : 0
+          return bRating - aRating
+        })
         break
       case 'relevance':
       default:
-        // Keep original order or sort by recommendation score
-        if (recommendations.length > 0) {
-          const recMap = new Map(recommendations.map(r => [r.laptop_id, r.overall_score]))
-          filtered.sort((a, b) => (recMap.get(b.id) || 0) - (recMap.get(a.id) || 0))
-        }
+        // Keep original order
         break
     }
 
@@ -121,49 +111,46 @@ export default function DynamicLaptopGrid({
   }
 
   const getSpecsDisplay = (laptop: Laptop) => {
-    if (!uiConfig) return getBasicSpecs(laptop)
+    if (!laptop.specs) return {}
+
+    const specs = laptop.specs as Record<string, any>
+    
+    if (!uiConfig) return getBasicSpecs(specs)
 
     switch (uiConfig.content.spec_detail_level) {
       case 'expert':
-        return getExpertSpecs(laptop)
+        return getExpertSpecs(specs)
       case 'detailed':
-        return getDetailedSpecs(laptop)
+        return getDetailedSpecs(specs)
       default:
-        return getBasicSpecs(laptop)
+        return getBasicSpecs(specs)
     }
   }
 
-  const getBasicSpecs = (laptop: Laptop) => ({
-    processor: `${laptop.specs.processor?.brand} ${laptop.specs.processor?.model}`,
-    memory: `${laptop.specs.memory?.capacity_gb}GB RAM`,
-    storage: `${laptop.specs.storage?.capacity_gb}GB ${laptop.specs.storage?.type}`,
-    display: `${laptop.specs.display?.size_inches}" ${laptop.specs.display?.resolution}`,
-  })
+  const getBasicSpecs = (specs: Record<string, any>) => {
+    return Object.entries(specs).reduce((acc, [key, value]) => {
+      acc[key] = typeof value === 'object' ? JSON.stringify(value) : String(value)
+      return acc
+    }, {} as Record<string, string>)
+  }
 
-  const getDetailedSpecs = (laptop: Laptop) => ({
-    ...getBasicSpecs(laptop),
-    graphics: laptop.specs.graphics?.dedicated 
-      ? `${laptop.specs.graphics.model} (${laptop.specs.graphics.vram_gb}GB)`
-      : 'Integrated Graphics',
-    performance: laptop.performance_scores?.overall_score 
-      ? `Performance Score: ${laptop.performance_scores.overall_score}`
-      : null,
-  })
+  const getDetailedSpecs = (specs: Record<string, any>) => {
+    return getBasicSpecs(specs)
+  }
 
-  const getExpertSpecs = (laptop: Laptop) => ({
-    ...getDetailedSpecs(laptop),
-    cpu_details: `${laptop.specs.processor?.cores}C/${laptop.specs.processor?.threads}T @ ${laptop.specs.processor?.base_clock}GHz`,
-    memory_details: `${laptop.specs.memory?.type} @ ${laptop.specs.memory?.speed}MHz`,
-    display_details: `${laptop.specs.display?.panel_type} ${laptop.specs.display?.refresh_rate}Hz`,
-    benchmarks: laptop.performance_scores,
-  })
+  const getExpertSpecs = (specs: Record<string, any>) => {
+    return getBasicSpecs(specs)
+  }
 
-  const getRecommendationContext = (laptopId: string) => {
-    return recommendations.find(r => r.laptop_id === laptopId)
+  const getAverageRating = (reviews?: Array<{rating: number | null}>) => {
+    if (!reviews || reviews.length === 0) return null
+    const validRatings = reviews.filter(r => r.rating !== null).map(r => r.rating!)
+    if (validRatings.length === 0) return null
+    return validRatings.reduce((acc, rating) => acc + rating, 0) / validRatings.length
   }
 
   const getDensityClasses = () => {
-    if (!uiConfig) return 'p-4'
+    if (!uiConfig?.layout) return 'p-4'
     
     switch (uiConfig.layout.density) {
       case 'compact': return 'p-2'
@@ -177,7 +164,7 @@ export default function DynamicLaptopGrid({
     if (viewMode === 'cards') return 'grid grid-cols-1 md:grid-cols-2 gap-4'
     
     // Grid mode with density consideration
-    const density = uiConfig?.layout.density || 'normal'
+    const density = uiConfig?.layout?.density || 'normal'
     if (density === 'compact') return 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2'
     if (density === 'spacious') return 'grid grid-cols-1 md:grid-cols-2 gap-6'
     return 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4'
@@ -185,34 +172,27 @@ export default function DynamicLaptopGrid({
 
   const LaptopCard = ({ laptop }: { laptop: Laptop }) => {
     const specs = getSpecsDisplay(laptop)
-    const recommendation = getRecommendationContext(laptop.id)
-    const isCompact = viewMode === 'list' || uiConfig?.layout.density === 'compact'
+    const averageRating = getAverageRating(laptop.reviews)
+    const isCompact = viewMode === 'list' || uiConfig?.layout?.density === 'compact'
 
     return (
-      <Card className={`${getDensityClasses()} hover:shadow-lg transition-shadow cursor-pointer ${
-        recommendation ? 'border-blue-200 bg-blue-50' : ''
-      }`}
+      <Card className={`${getDensityClasses()} hover:shadow-lg transition-shadow cursor-pointer`}
       onClick={() => onLaptopSelect?.(laptop)}>
         
-        {/* Recommendation Badge */}
-        {recommendation && (
-          <div className="mb-2 px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full inline-block">
-            🎯 AI Recommended ({Math.round(recommendation.overall_score * 100)}% match)
-          </div>
-        )}
-
         <div className={`${isCompact ? 'flex items-center space-x-4' : ''}`}>
           {/* Basic Info */}
           <div className={isCompact ? 'flex-1' : 'mb-3'}>
             <h3 className="font-semibold text-lg">{laptop.name}</h3>
-            <p className="text-gray-600">{laptop.brand} {laptop.model}</p>
+            <p className="text-gray-600">{laptop.brand || 'Unknown Brand'}</p>
             
             <div className="flex items-center justify-between mt-1">
-              <span className="font-bold text-xl">${laptop.price_usd?.toLocaleString()}</span>
-              {laptop.rating_overall && (
+              <span className="font-bold text-xl">
+                {laptop.price ? `$${laptop.price.toLocaleString()}` : 'Price TBA'}
+              </span>
+              {averageRating && (
                 <div className="flex items-center">
                   <span className="text-yellow-500">⭐</span>
-                  <span className="ml-1">{laptop.rating_overall.toFixed(1)}</span>
+                  <span className="ml-1">{averageRating.toFixed(1)}</span>
                 </div>
               )}
             </div>
@@ -220,73 +200,21 @@ export default function DynamicLaptopGrid({
 
           {/* Specifications */}
           <div className={`${isCompact ? 'flex-1' : 'mb-3'} text-sm space-y-1`}>
-            <div><strong>CPU:</strong> {specs.processor}</div>
-            <div><strong>RAM:</strong> {specs.memory}</div>
-            <div><strong>Storage:</strong> {specs.storage}</div>
-            {!isCompact && <div><strong>Display:</strong> {specs.display}</div>}
-            
-            {/* Expert level details */}
-            {uiConfig?.content.spec_detail_level === 'expert' && specs.cpu_details && (
-              <div className="text-xs text-gray-600 mt-2">
-                <div>{specs.cpu_details}</div>
-                <div>{specs.memory_details}</div>
-                <div>{specs.display_details}</div>
+            {Object.entries(specs).slice(0, isCompact ? 3 : 5).map(([key, value]) => (
+              <div key={key}>
+                <strong>{key.charAt(0).toUpperCase() + key.slice(1)}:</strong> {value}
               </div>
-            )}
+            ))}
           </div>
 
-          {/* Performance Scores */}
-          {uiConfig?.content.show_benchmarks && laptop.performance_scores && (
-            <div className={`${isCompact ? 'w-32' : 'mb-3'} text-xs`}>
-              <div className="space-y-1">
-                {laptop.performance_scores.cpu_score && (
-                  <div className="flex justify-between">
-                    <span>CPU:</span>
-                    <span className="font-semibold">{laptop.performance_scores.cpu_score}</span>
-                  </div>
-                )}
-                {laptop.performance_scores.gpu_score && (
-                  <div className="flex justify-between">
-                    <span>GPU:</span>
-                    <span className="font-semibold">{laptop.performance_scores.gpu_score}</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* AI Insights */}
-          {recommendation?.personalized_highlights && (
+          {/* Reviews Preview */}
+          {laptop.reviews && laptop.reviews.length > 0 && (
             <div className={`${isCompact ? 'w-48' : 'mb-3'} text-xs`}>
-              <div className="bg-blue-100 p-2 rounded">
-                <p className="font-semibold text-blue-800 mb-1">Why this matches:</p>
-                <ul className="list-disc list-inside text-blue-700 space-y-0.5">
-                  {recommendation.personalized_highlights.slice(0, isCompact ? 2 : 3).map((highlight: string, idx: number) => (
-                    <li key={idx}>{highlight}</li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-          )}
-
-          {/* Pros/Cons for expert mode */}
-          {uiConfig?.content.spec_detail_level === 'expert' && laptop.pros && laptop.cons && !isCompact && (
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              <div>
-                <h4 className="font-semibold text-green-700 mb-1">Pros:</h4>
-                <ul className="text-green-600 space-y-0.5">
-                  {laptop.pros.slice(0, 3).map((pro, idx) => (
-                    <li key={idx}>• {pro}</li>
-                  ))}
-                </ul>
-              </div>
-              <div>
-                <h4 className="font-semibold text-red-700 mb-1">Cons:</h4>
-                <ul className="text-red-600 space-y-0.5">
-                  {laptop.cons.slice(0, 3).map((con, idx) => (
-                    <li key={idx}>• {con}</li>
-                  ))}
-                </ul>
+              <div className="bg-gray-100 p-2 rounded">
+                <p className="font-semibold mb-1">Reviews ({laptop.reviews.length}):</p>
+                <p className="text-gray-600">
+                  "{laptop.reviews[0].content.substring(0, 60)}..."
+                </p>
               </div>
             </div>
           )}

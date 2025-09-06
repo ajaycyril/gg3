@@ -72,7 +72,10 @@ router.post('/', (0, errorHandler_1.asyncHandler)(async (req, res) => {
         hasText: !!text,
         rating
     });
-    const response = { data };
+    const response = {
+        success: true,
+        data
+    };
     res.status(201).json(response);
 }));
 // GET /api/feedback - Get user's feedback
@@ -94,11 +97,16 @@ router.get('/', (0, errorHandler_1.asyncHandler)(async (req, res) => {
         });
     }
     const response = {
+        success: true,
         data: data || [],
-        total: count || 0,
-        page: Math.floor(offset / limit) + 1,
-        limit,
-        hasMore: (count || 0) > offset + limit,
+        pagination: {
+            total: count || 0,
+            page: Math.floor(offset / limit) + 1,
+            limit,
+            offset,
+            hasMore: (count || 0) > offset + limit,
+            totalPages: Math.ceil((count || 0) / limit),
+        },
     };
     res.json(response);
 }));
@@ -138,7 +146,10 @@ router.put('/:id', (0, errorHandler_1.asyncHandler)(async (req, res) => {
         });
     }
     logger_1.default.info('Feedback updated:', { id, userId });
-    const response = { data };
+    const response = {
+        success: true,
+        data
+    };
     res.json(response);
 }));
 // DELETE /api/feedback/:id - Delete feedback

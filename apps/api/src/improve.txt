@@ -1,0 +1,64 @@
+Goal:
+
+remember our key goal, nobody who uses our platform goes away with a suboptimal gadget choice..we have to do everything to provide him all context equivalent to a techie doing research by redaging reviews specs user feedback and combiing with explicit knowledge about spoecs generations tech to make an informed choicce
+
+Let's also fix this list and ensure its ready for both local execution as well as v0:
+
+Canonicalize schema: Use the “laptops stack” (laptops, laptop_reviews, laptop_market_data) as the product source; keep gadgets only via a compatibility view for current UI.
+Align dynamic AI tables: Pick ONE set and delete/merge duplicates. Keep anon‑friendly (public.user_profiles, conversation_sessions, conversation_turns, ui_configurations, user_interactions) or migrate service to “production-ready” names. Avoid both sets enabled at once.
+Fix recommendations endpoint mismatch: Update POST /api/ai/recommendations to call the service correctly or add a wrapper method that accepts (userId, preferences, context) (apps/api/src/routes/dynamic-ai.ts:199).
+Regenerate Supabase types: Include user_profiles, conversation_*, ui_configurations/adaptive_ui_configs, dynamic_recommendations, laptops/*, crawl_jobs, crawl_items in apps/api/src/types/database.ts:1.
+Remove/replace RPC dependencies for dev: Guard or implement match_embeddings (apps/api/src/db/supabaseClient.ts:434) and stop using exec_sql in the script (scripts/apply-dynamic-ai-tables.js:31) — rely on migrations instead.
+Seed baseline data: Add seed rows for tenants (slug default), tenant_api_keys, a few laptops, one laptop_market_data per laptop, and laptop_reviews in supabase/seed.sql.
+Make API base configurable in web: Replace hardcoded http://localhost:3002 with process.env.NEXT_PUBLIC_API_URL in web calls (e.g., apps/web/components/AdaptiveChat.tsx:38, :77).
+Add OpenAI safe mode: If OPENAI_API_KEY missing, short‑circuit to fallbacks in DynamicAI service to avoid local failures (apps/api/src/services/dynamicAI.ts:1).
+Validate security hardening references: Ensure all tables referenced by policies actually exist or remove the policy lines (supabase/migrations/20250906_security_hardening.sql:6).
+Sanitize secrets: Remove real keys from apps/api/.env and keep only .env.example; use local .env ignored by git.
+V0 Deployment
+
+Single API surface: Choose Express API as serverless on Vercel (current code supports process.env.VERCEL === '1' export) and remove duplicate Next.js API routes for the same data, or proxy them to Express.
+Vercel routing: Ensure vercel.json maps /api/* to the Express serverless function and apps/web deploys as the Edge site.
+Set environment on Vercel: SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY (serverless function only), OPENAI_API_KEY, SENTRY_DSN, NEXT_PUBLIC_API_URL, NEXT_PUBLIC_SUPABASE_*.
+CORS and rate limiting: Include Vercel domains in allowed origins and confirm rate limits fit serverless (apps/api/src/index.ts:38).
+Cache headers: Keep strong CDN headers on reads (already present in web Edge route); add similar headers to product reads on Express if exposed.
+Indexes for prod: Confirm ivfflat, text, and join indexes exist for hot paths (brand/model, price, text search, embeddings) in migrations.
+Observability: Enable Sentry DSN, structured logs, and add a minimal dashboard view for crawl health/access audit if using security audit log.
+
+OTHER ENHNACEMENTS:
+
+Data & Coverage
+
+Multi‑source ingestion: retailer listings, OEM specs, expert sites, Reddit/YouTube, benchmark sources; enforce dedup by brand+model+variant.
+Normalization: canonical spec dictionary (CPU/GPU gen, cores, TDP, panel, ports), unit coercion, generation tagging, upgradeability flags.
+Review intelligence: credibility scoring, verified purchase flags, per‑aspect sentiment (performance, thermals, battery, build, value).
+Benchmark unification: map disparate tests to normalized categories with higher‑is‑better flags and device config metadata.
+Ranking & Guardrails
+
+Multi‑objective ranker: relevance, value, performance, thermals/noise, battery, portability, reliability; weight by user priorities.
+Hard constraints: absolute blockers (screen size range, budget ceiling, OS requirements, RAM upgradability).
+Coverage checks: ensure at least one “safe pick”, one “performance pick”, one “value pick” per user; never return empty — offer trade‑offs.
+Bias control: cap brand dominance, penalize known issues from review signals; explain trade‑offs explicitly.
+Explanation & Evidence
+
+Evidence‑backed reasoning: show why (“because…”) with citations to reviews/benchmarks/specs; expose confidence score.
+Comparison mode: side‑by‑side table of top 3 with highlighted deltas on user‑important attributes.
+Risk callouts: “Common issues” from sentiment mining (coil whine, heat, screen bleed); mitigation notes.
+Freshness indicators: price history sparkline, stock status, last scrape timestamp, gen recency.
+Adaptive UX
+
+Expertise scaling: beginner (plain‑English, simple pros/cons), intermediate (key specs + light benchmarks), expert (full specs, test configs, thermal/power curves if available).
+Smart filters: prefilled based on inferred use cases; show why each filter matters for the user intent.
+What‑if prompts: budget +/- 10%, screen size swap, step‑up/step‑down options with expected deltas.
+Feedback loop: “Helpful?” and “Missed requirement?” buttons tune weights and constraints immediately.
+Freshness & Trust
+
+Price/stock tracking: retailer heartbeat (cron), alert for price drops, duplicate retailer de‑spam.
+Data quality score: per product, surface warnings for low evidence or unverified specs; prefer verified sources.
+Reproducibility: show model version, features used, and data sources used for each recommendation.
+Observability & Safety
+
+Coverage dashboards: source freshness, scrape errors, gaps by brand/segment, model drift on satisfaction rate.
+SLA: fallback recommendations when upstream AI/RPCs fail; graceful degradation to deterministic rules.
+Ethics: disclose affiliate links, avoid dark patterns; never hide better options due to affiliate availability.
+
+

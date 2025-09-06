@@ -5,7 +5,7 @@ import { asyncHandler } from '../middleware/errorHandler';
 import logger from '../utils/logger';
 import Joi from 'joi';
 
-const router = Router();
+const router: Router = Router();
 
 // Validation schemas
 const preferencesSchema = Joi.object({
@@ -43,6 +43,14 @@ router.get('/profile', asyncHandler(async (req: Request, res: Response) => {
 
   // Create profile if doesn't exist
   if (!data) {
+    const userData = {
+      id: req.user!.id,
+      email: req.user!.email,
+      // Extract user metadata safely
+      full_name: req.user!.user_metadata?.full_name || null,
+      avatar_url: req.user!.user_metadata?.avatar_url || null,
+    };
+
     const { data: newProfile, error: createError } = await supabase
       .from('users')
       .insert({
@@ -62,11 +70,17 @@ router.get('/profile', asyncHandler(async (req: Request, res: Response) => {
       });
     }
 
-    const response: ApiResponse<User> = { data: newProfile };
+    const response: ApiResponse<User> = { 
+      success: true,
+      data: newProfile 
+    };
     return res.json(response);
   }
 
-  const response: ApiResponse<User> = { data };
+  const response: ApiResponse<User> = { 
+    success: true,
+    data 
+  };
   res.json(response);
 }));
 
@@ -104,7 +118,10 @@ router.put('/profile', asyncHandler(async (req: Request, res: Response) => {
 
   logger.info('User profile updated:', { userId, updates: Object.keys(value) });
 
-  const response: ApiResponse<User> = { data };
+  const response: ApiResponse<User> = { 
+    success: true,
+    data 
+  };
   res.json(response);
 }));
 
@@ -127,6 +144,7 @@ router.get('/preferences', asyncHandler(async (req: Request, res: Response) => {
   }
 
   const response: ApiResponse<UserPreferences> = { 
+    success: true,
     data: data?.preferences || {} 
   };
   res.json(response);
@@ -163,6 +181,7 @@ router.put('/preferences', asyncHandler(async (req: Request, res: Response) => {
   logger.info('User preferences updated:', { userId });
 
   const response: ApiResponse<UserPreferences> = { 
+    success: true,
     data: data.preferences 
   };
   res.json(response);
@@ -222,6 +241,7 @@ router.post('/save-gadget', asyncHandler(async (req: Request, res: Response) => 
   }
 
   const response: ApiResponse<{ message: string; saved_gadgets: string[] }> = {
+    success: true,
     data: {
       message: `Gadget ${action}d successfully`,
       saved_gadgets: Array.from(savedGadgets)
@@ -232,3 +252,20 @@ router.post('/save-gadget', asyncHandler(async (req: Request, res: Response) => 
 }));
 
 export default router;
+
+declare global {
+  namespace Express {
+    interface Request {
+      user?: {
+        id: string;
+        email?: string;
+        user_metadata?: {
+          full_name?: string;
+          avatar_url?: string;
+          display_name?: string;
+          [key: string]: any;
+        };
+      };
+    }
+  }
+}

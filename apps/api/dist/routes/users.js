@@ -40,6 +40,13 @@ router.get('/profile', (0, errorHandler_1.asyncHandler)(async (req, res) => {
     }
     // Create profile if doesn't exist
     if (!data) {
+        const userData = {
+            id: req.user.id,
+            email: req.user.email,
+            // Extract user metadata safely
+            full_name: req.user.user_metadata?.full_name || null,
+            avatar_url: req.user.user_metadata?.avatar_url || null,
+        };
         const { data: newProfile, error: createError } = await supabaseClient_1.supabase
             .from('users')
             .insert({
@@ -57,10 +64,16 @@ router.get('/profile', (0, errorHandler_1.asyncHandler)(async (req, res) => {
                 code: 'DATABASE_ERROR',
             });
         }
-        const response = { data: newProfile };
+        const response = {
+            success: true,
+            data: newProfile
+        };
         return res.json(response);
     }
-    const response = { data };
+    const response = {
+        success: true,
+        data
+    };
     res.json(response);
 }));
 // PUT /api/users/profile - Update user profile
@@ -91,7 +104,10 @@ router.put('/profile', (0, errorHandler_1.asyncHandler)(async (req, res) => {
         });
     }
     logger_1.default.info('User profile updated:', { userId, updates: Object.keys(value) });
-    const response = { data };
+    const response = {
+        success: true,
+        data
+    };
     res.json(response);
 }));
 // GET /api/users/preferences - Get user preferences
@@ -110,6 +126,7 @@ router.get('/preferences', (0, errorHandler_1.asyncHandler)(async (req, res) => 
         });
     }
     const response = {
+        success: true,
         data: data?.preferences || {}
     };
     res.json(response);
@@ -139,6 +156,7 @@ router.put('/preferences', (0, errorHandler_1.asyncHandler)(async (req, res) => 
     }
     logger_1.default.info('User preferences updated:', { userId });
     const response = {
+        success: true,
         data: data.preferences
     };
     res.json(response);
@@ -188,6 +206,7 @@ router.post('/save-gadget', (0, errorHandler_1.asyncHandler)(async (req, res) =>
         });
     }
     const response = {
+        success: true,
         data: {
             message: `Gadget ${action}d successfully`,
             saved_gadgets: Array.from(savedGadgets)

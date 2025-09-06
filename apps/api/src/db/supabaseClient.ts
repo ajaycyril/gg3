@@ -4,7 +4,7 @@ import path from 'path';
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { Database } from '../../shared/src/types';
+import { Database } from '../types/database';
 import logger from '../utils/logger';
 
 // V0-optimized Supabase client with serverless connection pooling
@@ -139,8 +139,7 @@ class DatabaseClient {
       const { data, error } = await this.adminClient
         .from('gadgets')
         .select('id')
-        .limit(1)
-        .abortSignal(controller.signal);
+        .limit(1);
       
       clearTimeout(timeout);
       
@@ -157,87 +156,60 @@ class DatabaseClient {
   }
 
   // V0-optimized query execution with automatic retries and circuit breaker
-  async executeQuery<T>(
+  async executeQuery<T = any>(
     tableName: string,
-    operation: 'select' | 'insert' | 'update' | 'delete',
+    operation: string,
     queryBuilder: (query: any) => any,
+    useAdmin?: boolean
+  ): Promise<{ data: T | null; error: any }>;
+  async executeQuery(queryBuilder: any): Promise<{ data: any; error: any }>;
+  async executeQuery<T = any>(
+    tableNameOrQueryBuilder: string | any,
+    operation?: string,
+    queryBuilder?: (query: any) => any,
     useAdmin: boolean = false
   ): Promise<{ data: T | null; error: any }> {
-    const startTime = Date.now();
-    const client = useAdmin ? this.adminClient : this.client;
-    
-    // V0 circuit breaker pattern
-    const maxRetries = 2; // Lower for serverless
-    let lastError: any;
-
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        // Add timeout for serverless environment
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 10000); // 10s max
-
-        let query = client.from(tableName);
-        query = queryBuilder(query);
+    try {
+      // V0 serverless timeout protection
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 25000); // 25s max
+      
+      let result;
+      
+      // Handle both overload signatures
+      if (typeof tableNameOrQueryBuilder === 'string') {
+        // Full signature with table name and operation
+        const client = useAdmin ? this.adminClient : this.client;
+        let query = client.from(tableNameOrQueryBuilder);
         
-        // Add abort signal if available
-        if ('abortSignal' in query) {
-          (query as any).abortSignal(controller.signal);
+        if (queryBuilder) {
+          query = queryBuilder(query);
         }
         
-        const result = await query;
-        clearTimeout(timeout);
-        
-        const duration = Date.now() - startTime;
-        
-        if (result.error && attempt < maxRetries) {
-          lastError = result.error;
-          logger.warn(`Query attempt ${attempt} failed, retrying:`, {
-            tableName,
-            operation,
-            duration: `${duration}ms`,
-            error: result.error.message
-          });
-          
-          // Exponential backoff for serverless
-          await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt - 1) * 200));
-          continue;
-        }
-        
-        logger.debug(`V0 Query executed on ${tableName}`, {
-          operation,
-          duration: `${duration}ms`,
-          attempt,
-          useAdmin,
-          success: !result.error
-        });
-        
-        return result;
-        
-      } catch (error) {
-        lastError = error;
-        const duration = Date.now() - startTime;
-        
-        if (attempt < maxRetries) {
-          logger.warn(`Query attempt ${attempt} failed with exception:`, {
-            tableName,
-            operation,
-            duration: `${duration}ms`,
-            error: error.message
-          });
-          await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt - 1) * 200));
-        }
+        result = await query;
+      } else {
+        // Simple signature with just query builder
+        result = await tableNameOrQueryBuilder;
       }
-    }
+      
+      clearTimeout(timeout);
+      
+      if (result.error) {
+        logger.error('V0 query execution error:', result.error);
+        return { data: null, error: result.error };
+      }
 
-    // All attempts failed
-    const duration = Date.now() - startTime;
-    logger.error(`All V0 query attempts failed on ${tableName}`, {
-      operation,
-      duration: `${duration}ms`,
-      error: lastError?.message || 'Unknown error'
-    });
-    
-    return { data: null, error: lastError };
+      if (!result.data) {
+        logger.warn('V0 query returned no data');
+        return { data: null, error: null };
+      }
+
+      return { data: result.data, error: null };
+      
+    } catch (error) {
+      logger.error('V0 query execution exception:', error);
+      return { data: null, error };
+    }
   }
 
   // V0-optimized pagination with serverless memory constraints
@@ -397,7 +369,7 @@ class DatabaseClient {
         }
       }
 
-      const successRate = ((records.length - errors.reduce((sum, err) => sum + (err.recordsInChunk || 0), 0)) / records.length * 100).toFixed(1);
+      const successRate = ((records.length - errors.reduce((sum: number, err: any) => sum + (err.recordsInChunk || 0), 0)) / records.length * 100).toFixed(1);
 
       logger.info(`V0 bulk insert completed for ${tableName}`, {
         totalRecords: records.length,
@@ -492,7 +464,7 @@ class DatabaseClient {
       
       try {
         // Process batch with concurrency control
-        const batchPromises = batch.map(async (item, index) => {
+        const batchPromises = batch.map(async (item: T, index: number) => {
           let lastError: any;
           
           for (let attempt = 1; attempt <= retryCount + 1; attempt++) {
@@ -514,8 +486,8 @@ class DatabaseClient {
         // Limit concurrent operations for V0
         const batchResults = await Promise.all(batchPromises);
         
-        batchResults.forEach(result => {
-          if (result.success) {
+        batchResults.forEach((result: { success: boolean; result?: R; error?: any; index: number }) => {
+          if (result.success && result.result) {
             results.push(result.result);
           } else {
             errors.push({
@@ -787,18 +759,18 @@ class DatabaseClient {
 
       // Post-process results for laptop-specific ranking
       const rankedResults = (data || [])
-        .map(item => ({
+        .map((item: any) => ({
           ...item,
           // Calculate laptop-specific score
           laptop_score: this.calculateLaptopScore(item, filters)
         }))
-        .sort((a, b) => b.laptop_score - a.laptop_score)
+        .sort((a: any, b: any) => b.laptop_score - a.laptop_score)
         .slice(0, limit);
 
       logger.debug('Laptop similarity search completed', {
         resultsCount: rankedResults.length,
         filters,
-        avgScore: rankedResults.reduce((sum, r) => sum + r.laptop_score, 0) / rankedResults.length
+        avgScore: rankedResults.reduce((sum: number, r: any) => sum + r.laptop_score, 0) / rankedResults.length
       });
 
       return { data: rankedResults, error: null };

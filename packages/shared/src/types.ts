@@ -191,7 +191,7 @@ export interface Database {
   }
 }
 
-type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[]
+export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[]
 
 // Core domain types
 export interface Gadget {
@@ -291,6 +291,7 @@ export interface AuthUser {
   email: string;
   name?: string;
   avatar_url?: string;
+  user_metadata?: any; // Add user_metadata property for Supabase auth compatibility
   created_at: string;
   updated_at: string;
 }
@@ -304,6 +305,7 @@ export interface UserPreferences {
   preferred_categories?: string[];
   skill_level: 'beginner' | 'intermediate' | 'expert';
   priorities: Priority[];
+  saved_gadgets?: string[]; // Add saved_gadgets property
   created_at: string;
   updated_at: string;
 }
@@ -343,6 +345,8 @@ export interface PaginationInfo {
   limit: number;
   total: number;
   totalPages: number;
+  offset?: number; // Add offset for backward compatibility
+  hasMore?: boolean; // Add hasMore for convenience
 }
 
 // Query and filter types
@@ -451,3 +455,128 @@ export type DatabaseTable =
 export type SortOrder = 'asc' | 'desc';
 export type SkillLevel = 'beginner' | 'intermediate' | 'expert';
 export type ReviewSource = 'amazon' | 'reddit' | 'youtube' | 'manual';
+
+// Additional types needed by the API
+export interface User {
+  id: string;
+  auth_id: string;
+  email: string;
+  display_name?: string;
+  preferences?: UserPreferences;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PaginatedResponse<T> {
+  data: T[];
+  pagination: PaginationInfo;
+  success: boolean;
+  message?: string;
+  total?: number; // Add total for backward compatibility
+  page?: number;  // Add page for backward compatibility
+  limit?: number; // Add limit for backward compatibility
+  hasMore?: boolean; // Add hasMore for backward compatibility
+}
+
+export interface SearchFilters {
+  category?: string;
+  brand?: string;
+  minPrice?: number;
+  maxPrice?: number;
+  search?: string;
+  tags?: string[];
+  availability?: 'in_stock' | 'out_of_stock' | 'all';
+}
+
+export interface RecommendationResult extends Recommendation {
+  summary?: string; // Add summary field
+  pros?: string[];  // Add pros field
+  cons?: string[];  // Add cons field  
+  score?: number;   // Add score field
+  sources?: { type: string; id: any; excerpt: string; }[]; // Add sources field
+  alternatives?: { gadget_id: any; reason: string; score: number; }[]; // Add alternatives field
+  metadata?: {
+    processing_time: number;
+    model_version: string;
+    context_tokens: number;
+  };
+}
+
+// Dynamic AI types for adaptive UI
+export interface UserProfile {
+  user_id: string;
+  expertise_level: 'beginner' | 'intermediate' | 'expert';
+  interface_complexity_preference: number; // 1-10 scale
+  preferred_interaction_style: 'guided' | 'exploratory' | 'direct';
+  learned_preferences: Record<string, any>;
+  technical_interests: Record<string, number>;
+  spec_detail_preference: number; // 1-10 scale
+}
+
+export interface ConversationSession {
+  id: string;
+  user_id: string;
+  session_goal: string;
+  current_phase: 'discovery' | 'refinement' | 'recommendation' | 'completed';
+  interaction_history: ConversationTurn[];
+  adaptive_context: Record<string, any>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ConversationTurn {
+  id: string;
+  session_id: string;
+  user_message: string;
+  ai_response: string;
+  ui_adaptations: UIAdaptation[];
+  confidence_score: number;
+  timestamp: string;
+}
+
+export interface UIAdaptation {
+  component: string;
+  property: string;
+  value: any;
+  reason: string;
+  confidence: number;
+}
+
+export interface AdaptiveRecommendation {
+  laptop_id: string;
+  overall_score: number;
+  ai_reasoning: string;
+  reasoning_complexity_level: number;
+  personalized_highlights: any[];
+  budget_fit_explanation: string;
+  use_case_alignment: Record<string, any>;
+}
+
+export interface UIConfiguration {
+  layout: {
+    view_mode: 'grid' | 'list' | 'cards';
+    density: 'compact' | 'normal' | 'spacious';
+    sidebar_visible: boolean;
+  };
+  filters: {
+    visible_filters: string[];
+    advanced_filters_visible: boolean;
+    filter_complexity: 'simple' | 'intermediate' | 'advanced';
+  };
+  content: {
+    spec_detail_level: 'basic' | 'detailed' | 'expert';
+    show_benchmarks: boolean;
+    show_technical_details: boolean;
+    comparison_mode: 'simple' | 'detailed' | 'technical';
+  };
+  recommendations: {
+    explanation_depth: 'brief' | 'moderate' | 'detailed';
+    show_alternatives: boolean;
+    highlight_technical: boolean;
+  };
+  interaction: {
+    chat_complexity: 'conversational' | 'technical' | 'expert';
+    suggested_questions_complexity: number;
+    enable_deep_dive_mode: boolean;
+  };
+}

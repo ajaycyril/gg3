@@ -1,11 +1,11 @@
-import { Router, Request, Response } from 'express';
 import { supabaseAdmin } from '../db/supabaseClient';
 import { ApiResponse, AuthUser } from '@gadgetguru/shared';
 import { asyncHandler } from '../middleware/errorHandler';
 import logger from '../utils/logger';
 import Joi from 'joi';
+import { Router, Request, Response } from 'express';
 
-const router = Router();
+const router: Router = Router();
 
 // Validation schemas
 const signInSchema = Joi.object({
@@ -58,11 +58,15 @@ router.post('/signin', asyncHandler(async (req: Request, res: Response) => {
   }
 
   const response: ApiResponse<{ user: AuthUser; session: any }> = {
+    success: true,
     data: {
       user: {
         id: data.user.id,
-        email: data.user.email,
-        user_metadata: data.user.user_metadata,
+        email: data.user.email || '',
+        name: data.user.user_metadata?.display_name || '',
+        avatar_url: data.user.user_metadata?.avatar_url,
+        created_at: data.user.created_at,
+        updated_at: data.user.updated_at || data.user.created_at,
       },
       session: data.session,
     },
@@ -103,14 +107,18 @@ router.post('/signup', asyncHandler(async (req: Request, res: Response) => {
   }
 
   const response: ApiResponse<{ message: string; user?: AuthUser }> = {
+    success: true,
     data: {
       message: data.user?.email_confirmed_at 
         ? 'Account created successfully'
         : 'Please check your email to confirm your account',
       user: data.user ? {
         id: data.user.id,
-        email: data.user.email,
-        user_metadata: data.user.user_metadata,
+        email: data.user.email || '',
+        name: data.user.user_metadata?.display_name || '',
+        avatar_url: data.user.user_metadata?.avatar_url,
+        created_at: data.user.created_at,
+        updated_at: data.user.updated_at || data.user.created_at,
       } : undefined,
     },
   };
@@ -147,6 +155,7 @@ router.post('/magic-link', asyncHandler(async (req: Request, res: Response) => {
   }
 
   const response: ApiResponse<{ message: string }> = {
+    success: true,
     data: {
       message: 'Magic link sent to your email',
     },
@@ -160,6 +169,7 @@ router.post('/signout', asyncHandler(async (req: Request, res: Response) => {
   // For server-side signout, we'll just respond successfully
   // The client should handle clearing the session locally
   const response: ApiResponse<{ message: string }> = {
+    success: true,
     data: {
       message: 'Signed out successfully',
     },
@@ -190,10 +200,14 @@ router.get('/user', asyncHandler(async (req: Request, res: Response) => {
   }
 
   const response: ApiResponse<AuthUser> = {
+    success: true,
     data: {
       id: user.id,
-      email: user.email,
-      user_metadata: user.user_metadata,
+      email: user.email || '',
+      name: user.user_metadata?.display_name || '',
+      avatar_url: user.user_metadata?.avatar_url,
+      created_at: user.created_at,
+      updated_at: user.updated_at || user.created_at,
     },
   };
 

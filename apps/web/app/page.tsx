@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { SearchBar } from '@/components/SearchBar'
 import { GadgetCard } from '@/components/GadgetCard'
 import { Button } from '@/components/ui/Button'
-import { apiService } from '@/lib/api'
+import { supabaseService } from '@/lib/supabase'
 import { Gadget, SearchFilters, PaginatedResponse } from '@/lib/types'
 import { Sparkles, TrendingUp, Award } from 'lucide-react'
 
@@ -21,12 +21,12 @@ export default function HomePage() {
       try {
         setLoading(true)
         const [gadgetsResponse, brandsResponse] = await Promise.all([
-          apiService.getGadgets({ limit: 6 }),
-          apiService.getBrands()
+          supabaseService.getGadgets({ limit: 6 }),
+          supabaseService.getBrands()
         ])
         
         setGadgets(gadgetsResponse.data)
-        setBrands(brandsResponse.data || [])
+        setBrands(brandsResponse || [])
       } catch (error) {
         console.error('Failed to load initial data:', error)
       } finally {
@@ -40,7 +40,7 @@ export default function HomePage() {
   const handleSearch = async (filters: SearchFilters) => {
     try {
       setLoading(true)
-      const response = await apiService.getGadgets(filters)
+      const response = await supabaseService.getGadgets(filters)
       setSearchResults(response)
       setHasSearched(true)
     } catch (error) {
@@ -52,8 +52,7 @@ export default function HomePage() {
 
   const handleSaveGadget = async (gadgetId: string, action: 'save' | 'unsave') => {
     try {
-      await apiService.saveGadget(gadgetId, action)
-      // Update local state or show success message
+      // TODO: Implement save functionality with Supabase
       console.log(`Gadget ${action}d successfully`)
     } catch (error) {
       console.error(`Failed to ${action} gadget:`, error)

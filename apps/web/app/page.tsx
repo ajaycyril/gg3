@@ -1,249 +1,310 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
-import { SearchBar } from '@/components/SearchBar'
-import { GadgetCard } from '@/components/GadgetCard'
+import { useState, useEffect } from 'react'
+import { useAuth } from '@/lib/auth'
+import AdaptiveChat from '@/components/AdaptiveChat'
+import DynamicLaptopGrid from '@/components/DynamicLaptopGrid'
 import { Button } from '@/components/ui/Button'
-import { api } from '@/lib/api'
-import { Gadget, SearchFilters, PaginatedResponse } from '@/lib/types'
-import { Sparkles, TrendingUp, Award } from 'lucide-react'
+
+interface UIConfiguration {
+  layout: {
+    view_mode: string
+    density: string
+    sidebar_visible: boolean
+  }
+  interaction: {
+    chat_complexity: string
+    suggested_questions_complexity: number
+    enable_deep_dive_mode: boolean
+  }
+  content: {
+    spec_detail_level: string
+    show_benchmarks: boolean
+    show_technical_details: boolean
+  }
+  filters: {
+    visible_filters: string[]
+    advanced_filters_visible: boolean
+    filter_complexity: string
+  }
+}
 
 export default function HomePage() {
-  const [gadgets, setGadgets] = useState<Gadget[]>([])
-  const [loading, setLoading] = useState(false)
-  const [brands, setBrands] = useState<string[]>([])
-  const [hasSearched, setHasSearched] = useState(false)
-  const [searchResults, setSearchResults] = useState<PaginatedResponse<Gadget> | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const { user } = useAuth()
+  const [laptops, setLaptops] = useState([])
+  const [recommendations, setRecommendations] = useState([])
+  const [uiConfig, setUiConfig] = useState<UIConfiguration | null>(null)
+  const [activeView, setActiveView] = useState<'chat' | 'browse' | 'split'>('split')
+  const [selectedLaptop, setSelectedLaptop] = useState(null)
+  const [isLoading, setIsLoading] = useState(true)
 
-  // Load initial data and brands
+  // Initialize the adaptive interface
   useEffect(() => {
-    const loadInitialData = async () => {
-      try {
-        setLoading(true)
-        setError(null)
-        const [gadgetsResponse, brandsResponse] = await Promise.all([
-          api.getGadgets({ limit: 6 }),
-          api.getBrands()
-        ])
-        
-        setGadgets(gadgetsResponse.data)
-        setBrands(brandsResponse || [])
-      } catch (error) {
-        console.error('Failed to load initial data:', error)
-        setError('Failed to load gadgets. Please try again later.')
-      } finally {
-        setLoading(false)
+    initializeAdaptiveInterface()
+  }, [user])
+
+  const initializeAdaptiveInterface = async () => {
+    try {
+      setIsLoading(true)
+      
+      // Load initial laptop data
+      const laptopsResponse = await fetch('/api/gadgets?category=laptop&limit=20')
+      const laptopsData = await laptopsResponse.json()
+      
+      if (laptopsData.success) {
+        setLaptops(laptopsData.data)
       }
-    }
 
-    loadInitialData()
-  }, [])
+      // Get user's adaptive UI configuration
+      if (user) {
+        const configResponse = await fetch('/api/ai/ui-config', {
+          credentials: 'include'
+        })
+        const configData = await configResponse.json()
+        
+        if (configData.success) {
+          setUiConfig(configData.data.configuration)
+          
+          // Set initial view based on user preference
+          const preferredView = configData.data.configuration.layout?.sidebar_visible 
+            ? 'split' 
+            : 'browse'
+          setActiveView(preferredView)
+        }
+      }
 
-  const handleSearch = async (filters: SearchFilters) => {
-    try {
-      setLoading(true)
-      setError(null)
-      const response = await api.getGadgets(filters)
-      setSearchResults(response)
-      setHasSearched(true)
     } catch (error) {
-      console.error('Search failed:', error)
-      setError('Search failed. Please try again.')
+      console.error('Failed to initialize adaptive interface:', error)
     } finally {
-      setLoading(false)
+      setIsLoading(false)
     }
   }
 
-  const handleSaveGadget = async (gadgetId: string, action: 'save' | 'unsave') => {
-    try {
-      // TODO: Implement save functionality with Supabase
-      console.log(`Gadget ${action}d successfully`)
-    } catch (error) {
-      console.error(`Failed to ${action} gadget:`, error)
+  const handleRecommendationsReceived = (newRecommendations: any[]) => {
+    setRecommendations(newRecommendations)
+    
+    // Auto-switch to browse view when recommendations are available
+    if (newRecommendations.length > 0 && activeView === 'chat') {
+      setActiveView('split')
     }
   }
 
-  const displayGadgets = hasSearched ? (searchResults?.data || []) : gadgets
+  const handleUIConfigUpdate = (newConfig: UIConfiguration) => {
+    setUiConfig(newConfig)
+  }
+
+  const handleLaptopSelect = (laptop: any) => {
+    setSelectedLaptop(laptop)
+    // Could open a detailed view or comparison modal
+  }
+
+  const getLayoutClasses = () => {
+    switch (activeView) {
+      case 'chat':
+        return 'grid grid-cols-1'
+      case 'browse':
+        return 'grid grid-cols-1'
+      case 'split':
+        return uiConfig?.layout.sidebar_visible 
+          ? 'grid grid-cols-1 lg:grid-cols-3 gap-6'
+          : 'grid grid-cols-1 lg:grid-cols-2 gap-6'
+      default:
+        return 'grid grid-cols-1 lg:grid-cols-2 gap-6'
+    }
+  }
+
+  const ViewToggle = () => (
+    <div className="flex items-center space-x-2 mb-6">
+      <span className="text-sm text-gray-600">View:</span>
+      <div className="flex border rounded-md overflow-hidden">
+        {[
+          { key: 'chat', label: '💬 Chat', desc: 'AI Conversation' },
+          { key: 'browse', label: '🔍 Browse', desc: 'Laptop Grid' },
+          { key: 'split', label: '⚡ Smart', desc: 'Chat + Browse' }
+        ].map(({ key, label, desc }) => (
+          <button
+            key={key}
+            onClick={() => setActiveView(key as any)}
+            className={`px-4 py-2 text-sm ${
+              activeView === key
+                ? 'bg-blue-500 text-white'
+                : 'bg-white hover:bg-gray-50 text-gray-700'
+            }`}
+            title={desc}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      
+      {/* Expertise indicator */}
+      {uiConfig && (
+        <div className="ml-4 px-3 py-1 bg-gray-100 rounded-full text-xs">
+          {uiConfig.content.spec_detail_level === 'expert' && '🔬 Expert Mode'}
+          {uiConfig.content.spec_detail_level === 'detailed' && '⚖️ Detailed Mode'}
+          {uiConfig.content.spec_detail_level === 'basic' && '🎯 Simple Mode'}
+        </div>
+      )}
+    </div>
+  )
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <p className="text-gray-600">Initializing adaptive interface...</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Hero Section */}
-      <section className="bg-gradient-to-br from-blue-600 via-purple-600 to-indigo-700 text-white py-20">
-        <div className="container mx-auto px-4">
-          <div className="text-center max-w-4xl mx-auto">
-            <div className="flex items-center justify-center mb-4">
-              <Sparkles className="h-8 w-8 mr-2" />
-              <h1 className="text-5xl font-bold">GadgetGuru</h1>
+      {/* Header */}
+      <header className="bg-white border-b border-gray-200 px-6 py-4">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">GadgetGuru</h1>
+              <p className="text-gray-600">
+                AI-Powered Laptop Intelligence Platform
+                {recommendations.length > 0 && (
+                  <span className="ml-2 px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
+                    {recommendations.length} AI Recommendations
+                  </span>
+                )}
+              </p>
             </div>
-            <p className="text-xl mb-8 text-blue-100">
-              Find Your Perfect Gadget with AI-Powered Recommendations
-            </p>
-            <p className="text-lg mb-12 text-blue-200 max-w-2xl mx-auto">
-              Get personalized recommendations based on real reviews, detailed specs, 
-              and performance benchmarks. Our AI analyzes thousands of data points 
-              to help you make the perfect choice.
-            </p>
-
-            {/* Search Bar */}
-            <SearchBar 
-              onSearch={handleSearch}
-              loading={loading}
-              brands={brands}
-            />
-          </div>
-        </div>
-      </section>
-
-      {/* Main Content */}
-      <main className="container mx-auto px-4 py-12">
-        {hasSearched ? (
-          /* Search Results */
-          <section>
-            <div className="flex items-center justify-between mb-8">
-              <h2 className="text-3xl font-bold text-gray-900">
-                Search Results
-              </h2>
-              {searchResults && (
-                <p className="text-gray-600">
-                  {searchResults.total} gadgets found
-                </p>
-              )}
-            </div>
-
-            {displayGadgets.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {displayGadgets.map((gadget) => (
-                  <GadgetCard
-                    key={gadget.id}
-                    gadget={gadget}
-                    onSave={handleSaveGadget}
-                    showFullDetails
-                  />
-                ))}
+            
+            {user ? (
+              <div className="flex items-center space-x-4">
+                <span className="text-sm text-gray-600">Welcome, {user.email}</span>
+                <Button variant="outline" size="sm">
+                  Profile
+                </Button>
               </div>
             ) : (
-              <div className="text-center py-12">
-                <div className="text-gray-400 text-lg mb-4">No gadgets found</div>
-                <p className="text-gray-600">Try adjusting your search filters</p>
-              </div>
-            )}
-
-            {searchResults && searchResults.hasMore && (
-              <div className="text-center mt-8">
-                <Button variant="outline" size="lg">
-                  Load More Results
+              <div className="flex items-center space-x-2">
+                <Button variant="outline" size="sm">
+                  Sign In
+                </Button>
+                <Button size="sm">
+                  Sign Up
                 </Button>
               </div>
             )}
-          </section>
-        ) : (
-          <>
-            {/* Features Section */}
-            <section className="mb-16">
-              <div className="text-center mb-12">
-                <h2 className="text-3xl font-bold text-gray-900 mb-4">
-                  Why Choose GadgetGuru?
-                </h2>
-                <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-                  Our AI-powered platform provides comprehensive gadget insights you won't find anywhere else
-                </p>
+          </div>
+          
+          <ViewToggle />
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="max-w-7xl mx-auto px-6 py-6">
+        <div className={getLayoutClasses()}>
+          {/* Chat Interface */}
+          {(activeView === 'chat' || activeView === 'split') && (
+            <div className={`${
+              activeView === 'split' 
+                ? (uiConfig?.layout.sidebar_visible ? 'lg:col-span-1' : 'lg:col-span-1')
+                : 'col-span-1'
+            }`}>
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 h-[600px]">
+                <AdaptiveChat
+                  onRecommendationsReceived={handleRecommendationsReceived}
+                  onUIConfigUpdate={handleUIConfigUpdate}
+                />
               </div>
+            </div>
+          )}
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                <div className="text-center p-6">
-                  <div className="bg-blue-100 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
-                    <Sparkles className="h-8 w-8 text-blue-600" />
-                  </div>
-                  <h3 className="text-xl font-semibold mb-2">AI-Powered Analysis</h3>
-                  <p className="text-gray-600">
-                    Our GPT-4 powered system analyzes reviews, specs, and benchmarks to provide personalized recommendations
-                  </p>
-                </div>
-
-                <div className="text-center p-6">
-                  <div className="bg-green-100 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
-                    <TrendingUp className="h-8 w-8 text-green-600" />
-                  </div>
-                  <h3 className="text-xl font-semibold mb-2">Real-Time Data</h3>
-                  <p className="text-gray-600">
-                    Live data from Amazon, Reddit, YouTube, and benchmark sites ensures you get the latest insights
-                  </p>
-                </div>
-
-                <div className="text-center p-6">
-                  <div className="bg-purple-100 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
-                    <Award className="h-8 w-8 text-purple-600" />
-                  </div>
-                  <h3 className="text-xl font-semibold mb-2">Expert Insights</h3>
-                  <p className="text-gray-600">
-                    Comprehensive analysis including pros, cons, performance scores, and alternative suggestions
-                  </p>
-                </div>
+          {/* Laptop Grid */}
+          {(activeView === 'browse' || activeView === 'split') && (
+            <div className={`${
+              activeView === 'split' 
+                ? (uiConfig?.layout.sidebar_visible ? 'lg:col-span-2' : 'lg:col-span-1')
+                : 'col-span-1'
+            }`}>
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <DynamicLaptopGrid
+                  laptops={laptops}
+                  uiConfig={uiConfig}
+                  recommendations={recommendations}
+                  onLaptopSelect={handleLaptopSelect}
+                />
               </div>
-            </section>
+            </div>
+          )}
+        </div>
 
-            {/* Featured Gadgets */}
-            <section>
-              <div className="flex items-center justify-between mb-8">
-                <h2 className="text-3xl font-bold text-gray-900">
-                  Featured Gadgets
-                </h2>
-                <Button variant="outline">
-                  View All Gadgets
-                </Button>
+        {/* Quick Stats */}
+        {laptops.length > 0 && (
+          <div className="mt-6 grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="bg-white p-4 rounded-lg border border-gray-200">
+              <div className="text-2xl font-bold text-blue-600">{laptops.length}</div>
+              <div className="text-sm text-gray-600">Laptops Available</div>
+            </div>
+            
+            <div className="bg-white p-4 rounded-lg border border-gray-200">
+              <div className="text-2xl font-bold text-green-600">{recommendations.length}</div>
+              <div className="text-sm text-gray-600">AI Recommendations</div>
+            </div>
+            
+            <div className="bg-white p-4 rounded-lg border border-gray-200">
+              <div className="text-2xl font-bold text-purple-600">
+                {uiConfig?.content.spec_detail_level || 'Auto'}
               </div>
-
-              {loading ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {[...Array(6)].map((_, i) => (
-                    <div key={i} className="border rounded-lg p-4 animate-pulse">
-                      <div className="bg-gray-200 h-48 rounded mb-4"></div>
-                      <div className="bg-gray-200 h-4 rounded mb-2"></div>
-                      <div className="bg-gray-200 h-4 rounded w-2/3"></div>
-                    </div>
-                  ))}
-                </div>
-              ) : displayGadgets.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {displayGadgets.map((gadget) => (
-                    <GadgetCard
-                      key={gadget.id}
-                      gadget={gadget}
-                      onSave={handleSaveGadget}
-                      showFullDetails
-                    />
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-12">
-                  <div className="text-gray-400 text-lg">No gadgets available</div>
-                </div>
-              )}
-            </section>
-          </>
+              <div className="text-sm text-gray-600">Complexity Level</div>
+            </div>
+            
+            <div className="bg-white p-4 rounded-lg border border-gray-200">
+              <div className="text-2xl font-bold text-orange-600">
+                {uiConfig?.interaction.suggested_questions_complexity || 5}/10
+              </div>
+              <div className="text-sm text-gray-600">Chat Complexity</div>
+            </div>
+          </div>
         )}
       </main>
 
-      {/* CTA Section */}
-      <section className="bg-gray-900 text-white py-16">
-        <div className="container mx-auto px-4 text-center">
-          <h2 className="text-3xl font-bold mb-4">
-            Ready to Find Your Perfect Gadget?
-          </h2>
-          <p className="text-xl text-gray-300 mb-8 max-w-2xl mx-auto">
-            Join thousands of users who trust GadgetGuru for smart gadget recommendations
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button size="lg" className="bg-blue-600 hover:bg-blue-700">
-              Get AI Recommendation
-            </Button>
-            <Button variant="outline" size="lg" className="text-white border-white hover:bg-white hover:text-gray-900">
-              Browse All Gadgets
-            </Button>
+      {/* Footer */}
+      <footer className="bg-white border-t border-gray-200 mt-12">
+        <div className="max-w-7xl mx-auto px-6 py-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div>
+              <h3 className="font-semibold mb-4">GadgetGuru AI</h3>
+              <p className="text-sm text-gray-600">
+                AI-powered laptop recommendations that adapt to your expertise level and preferences.
+              </p>
+            </div>
+            
+            <div>
+              <h3 className="font-semibold mb-4">Features</h3>
+              <ul className="text-sm text-gray-600 space-y-2">
+                <li>• Adaptive AI Conversations</li>
+                <li>• Dynamic UI Complexity</li>
+                <li>• Real-time Recommendations</li>
+                <li>• Multi-source Data Analysis</li>
+              </ul>
+            </div>
+            
+            <div>
+              <h3 className="font-semibold mb-4">Technology</h3>
+              <ul className="text-sm text-gray-600 space-y-2">
+                <li>• OpenAI GPT-4 Integration</li>
+                <li>• Vector Similarity Search</li>
+                <li>• Supabase Database</li>
+                <li>• V0 Serverless Deployment</li>
+              </ul>
+            </div>
+          </div>
+          
+          <div className="border-t border-gray-200 mt-8 pt-8 text-center text-sm text-gray-600">
+            <p>&copy; 2025 GadgetGuru AI. Revolutionizing tech purchasing decisions.</p>
           </div>
         </div>
-      </section>
+      </footer>
     </div>
   )
 }

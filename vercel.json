@@ -1,16 +1,56 @@
 {
   "version": 2,
-  "name": "gadgetguru",
+  "name": "gadgetguru-v0",
   "builds": [
     {
       "src": "apps/web/package.json",
-      "use": "@vercel/next"
+      "use": "@vercel/next",
+      "config": {
+        "maxDuration": 30
+      }
     }
   ],
   "routes": [
     {
+      "src": "/api/(.*)",
+      "dest": "/apps/web/app/api/$1"
+    },
+    {
       "src": "/(.*)",
       "dest": "/apps/web/$1"
+    }
+  ],
+  "functions": {
+    "apps/web/app/api/**/*.js": {
+      "runtime": "edge"
+    },
+    "apps/web/app/api/**/*.ts": {
+      "runtime": "edge"
+    }
+  },
+  "env": {
+    "NEXT_PUBLIC_SUPABASE_URL": "@supabase_url",
+    "NEXT_PUBLIC_SUPABASE_ANON_KEY": "@supabase_anon_key",
+    "NODE_ENV": "production"
+  },
+  "regions": ["iad1", "sfo1", "fra1"],
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, s-maxage=60, stale-while-revalidate=300"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        }
+      ]
     }
   ]
 }

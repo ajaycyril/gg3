@@ -22,9 +22,11 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '20')
     const offset = parseInt(searchParams.get('offset') || '0')
 
+    console.log('Fetching gadgets with params:', { search, category, brand, limit, offset })
+
     let query = supabase
       .from('gadgets')
-      .select('*')
+      .select('*', { count: 'exact' })
 
     // Apply filters
     if (search) {
@@ -38,7 +40,16 @@ export async function GET(request: NextRequest) {
 
     const { data, error, count } = await query
 
-    if (error) throw error
+    console.log('Supabase query result:', { 
+      dataCount: data?.length || 0, 
+      totalCount: count, 
+      error: error?.message 
+    })
+
+    if (error) {
+      console.error('Supabase error:', error)
+      throw error
+    }
 
     return NextResponse.json({
       data: data || [],
@@ -48,8 +59,12 @@ export async function GET(request: NextRequest) {
       hasMore: (count || 0) > offset + limit
     })
   } catch (error) {
+    console.error('API Route error:', error)
     return NextResponse.json(
-      { error: 'Failed to fetch gadgets' },
+      { 
+        error: 'Failed to fetch gadgets',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      },
       { status: 500 }
     )
   }

@@ -1,1 +1,40 @@
 node_modules
+.vercel
+
+# Next.js build artifacts
+apps/web/.next/
+apps/web/.swc/
+apps/web/out/
+apps/web/build/
+
+# Development files
+*.tsbuildinfo
+.turbo/
+
+# Environment files
+.env
+.env.local
+.env.production
+.env.test
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Coverage
+coverage/
+.nyc_output/
+
+# Cache directories
+.cache/
+.parcel-cache/

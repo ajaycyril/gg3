@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { SearchBar } from '@/components/SearchBar'
 import { GadgetCard } from '@/components/GadgetCard'
 import { Button } from '@/components/ui/Button'
-import { supabaseService } from '@/lib/supabase'
+import { api } from '@/lib/api'
 import { Gadget, SearchFilters, PaginatedResponse } from '@/lib/types'
 import { Sparkles, TrendingUp, Award } from 'lucide-react'
 
@@ -14,21 +14,24 @@ export default function HomePage() {
   const [brands, setBrands] = useState<string[]>([])
   const [hasSearched, setHasSearched] = useState(false)
   const [searchResults, setSearchResults] = useState<PaginatedResponse<Gadget> | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   // Load initial data and brands
   useEffect(() => {
     const loadInitialData = async () => {
       try {
         setLoading(true)
+        setError(null)
         const [gadgetsResponse, brandsResponse] = await Promise.all([
-          supabaseService.getGadgets({ limit: 6 }),
-          supabaseService.getBrands()
+          api.getGadgets({ limit: 6 }),
+          api.getBrands()
         ])
         
         setGadgets(gadgetsResponse.data)
         setBrands(brandsResponse || [])
       } catch (error) {
         console.error('Failed to load initial data:', error)
+        setError('Failed to load gadgets. Please try again later.')
       } finally {
         setLoading(false)
       }
@@ -40,11 +43,13 @@ export default function HomePage() {
   const handleSearch = async (filters: SearchFilters) => {
     try {
       setLoading(true)
-      const response = await supabaseService.getGadgets(filters)
+      setError(null)
+      const response = await api.getGadgets(filters)
       setSearchResults(response)
       setHasSearched(true)
     } catch (error) {
       console.error('Search failed:', error)
+      setError('Search failed. Please try again.')
     } finally {
       setLoading(false)
     }

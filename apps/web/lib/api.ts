@@ -1,91 +1,132 @@
-import axios, { AxiosInstance } from 'axios'
-import { 
-  Gadget, 
-  ApiResponse, 
-  PaginatedResponse, 
-  SearchFilters,
-  Recommendation,
-  User,
-  UserPreferences,
-  Feedback 
-} from '@/lib/types'
+import { Gadget, SearchFilters, PaginatedResponse, ApiResponse, Recommendation, User, UserPreferences, Feedback } from '@/lib/types'
 
-class ApiService {
-  private client: AxiosInstance
+const API_BASE = process.env.NODE_ENV === 'production' ? '' : ''
 
-  constructor() {
-    this.client = axios.create({
-      baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002',
+export const api = {
+  async getGadgets(filters: SearchFilters = {}): Promise<PaginatedResponse<Gadget>> {
+    const params = new URLSearchParams()
+    
+    if (filters.query) params.append('search', filters.query)
+    if (filters.brands && filters.brands.length > 0) params.append('brand', filters.brands[0]) // Use first brand for now
+    if (filters.limit) params.append('limit', filters.limit.toString())
+    if (filters.offset) params.append('offset', filters.offset.toString())
+
+    const response = await fetch(`${API_BASE}/api/gadgets?${params}`)
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch gadgets: ${response.statusText}`)
+    }
+
+    return response.json()
+  },
+
+  async getGadget(id: string): Promise<Gadget | null> {
+    const response = await fetch(`${API_BASE}/api/gadgets/${id}`)
+    
+    if (response.status === 404) {
+      return null
+    }
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch gadget: ${response.statusText}`)
+    }
+
+    return response.json()
+  },
+
+  async getBrands(): Promise<string[]> {
+    const response = await fetch(`${API_BASE}/api/gadgets/brands`)
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch brands: ${response.statusText}`)
+    }
+
+    return response.json()
+  },
+
+  async getCategories(): Promise<string[]> {
+    const response = await fetch(`${API_BASE}/api/gadgets/categories`)
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch categories: ${response.statusText}`)
+    }
+
+    return response.json()
+  },
+
+  async signIn(email: string, password: string) {
+    const response = await fetch(`${API_BASE}/api/auth/signin`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ email, password }),
+    })
+
+    if (!response.ok) {
+      throw new Error(`Failed to sign in: ${response.statusText}`)
+    }
+
+    return response.json()
+  },
+
+  async signUp(email: string, password: string) {
+    const response = await fetch(`${API_BASE}/api/auth/signup`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ email, password }),
+    })
+
+    if (!response.ok) {
+      throw new Error(`Failed to sign up: ${response.statusText}`)
+    }
+
+    return response.json()
+  },
+
+  async sendMagicLink(email: string, redirectTo?: string) {
+    const response = await fetch(`${API_BASE}/api/auth/magic-link`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ email, redirectTo }),
+    })
+
+    if (!response.ok) {
+      throw new Error(`Failed to send magic link: ${response.statusText}`)
+    }
+
+    return response.json()
+  },
+
+  async signOut() {
+    const response = await fetch(`${API_BASE}/api/auth/signout`, {
+      method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
     })
 
-    // Request interceptor to add auth token
-    this.client.interceptors.request.use((config) => {
-      const token = localStorage.getItem('supabase.auth.token')
-      if (token) {
-        config.headers.Authorization = `Bearer ${token}`
-      }
-      return config
-    })
+    if (!response.ok) {
+      throw new Error(`Failed to sign out: ${response.statusText}`)
+    }
 
-    // Response interceptor for error handling
-    this.client.interceptors.response.use(
-      (response) => response,
-      (error) => {
-        if (error.response?.status === 401) {
-          // Handle unauthorized - redirect to login
-          window.location.href = '/auth/signin'
-        }
-        return Promise.reject(error)
-      }
-    )
-  }
-
-  // Gadgets API
-  async getGadgets(filters?: SearchFilters): Promise<PaginatedResponse<Gadget>> {
-    const { data } = await this.client.get('/api/gadgets', { params: filters })
-    return data
-  }
-
-  async getGadget(id: string): Promise<ApiResponse<Gadget>> {
-    const { data } = await this.client.get(`/api/gadgets/${id}`)
-    return data
-  }
-
-  async getBrands(): Promise<ApiResponse<string[]>> {
-    const { data } = await this.client.get('/api/gadgets/meta/brands')
-    return data
-  }
-
-  // Authentication API
-  async signIn(email: string, password: string) {
-    const { data } = await this.client.post('/api/auth/signin', { email, password })
-    return data
-  }
-
-  async signUp(email: string, password: string) {
-    const { data } = await this.client.post('/api/auth/signup', { email, password })
-    return data
-  }
-
-  async sendMagicLink(email: string, redirectTo?: string) {
-    const { data } = await this.client.post('/api/auth/magic-link', { email, redirectTo })
-    return data
-  }
-
-  async signOut() {
-    const { data } = await this.client.post('/api/auth/signout')
-    return data
-  }
+    return response.json()
+  },
 
   async getCurrentUser() {
-    const { data } = await this.client.get('/api/auth/user')
-    return data
-  }
+    const response = await fetch(`${API_BASE}/api/auth/user`)
 
-  // Recommendations API
+    if (!response.ok) {
+      throw new Error(`Failed to fetch current user: ${response.statusText}`)
+    }
+
+    return response.json()
+  },
+
   async createRecommendation(request: {
     prompt: string
     gadget_id?: string
@@ -93,73 +134,154 @@ class ApiService {
     preferred_brands?: string[]
     use_cases?: string[]
   }): Promise<ApiResponse<Recommendation>> {
-    const { data } = await this.client.post('/api/recommendations', request)
-    return data
-  }
+    const response = await fetch(`${API_BASE}/api/recommendations`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(request),
+    })
+
+    if (!response.ok) {
+      throw new Error(`Failed to create recommendation: ${response.statusText}`)
+    }
+
+    return response.json()
+  },
 
   async getRecommendations(limit = 10, offset = 0): Promise<PaginatedResponse<Recommendation>> {
-    const { data } = await this.client.get('/api/recommendations', {
-      params: { limit, offset }
-    })
-    return data
-  }
+    const params = new URLSearchParams()
+    params.append('limit', limit.toString())
+    params.append('offset', offset.toString())
+
+    const response = await fetch(`${API_BASE}/api/recommendations?${params}`)
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch recommendations: ${response.statusText}`)
+    }
+
+    return response.json()
+  },
 
   async getRecommendation(id: string): Promise<ApiResponse<Recommendation>> {
-    const { data } = await this.client.get(`/api/recommendations/${id}`)
-    return data
-  }
+    const response = await fetch(`${API_BASE}/api/recommendations/${id}`)
 
-  // User API
+    if (!response.ok) {
+      throw new Error(`Failed to fetch recommendation: ${response.statusText}`)
+    }
+
+    return response.json()
+  },
+
   async getUserProfile(): Promise<ApiResponse<User>> {
-    const { data } = await this.client.get('/api/users/profile')
-    return data
-  }
+    const response = await fetch(`${API_BASE}/api/users/profile`)
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch user profile: ${response.statusText}`)
+    }
+
+    return response.json()
+  },
 
   async updateUserProfile(updates: Partial<User>): Promise<ApiResponse<User>> {
-    const { data } = await this.client.put('/api/users/profile', updates)
-    return data
-  }
+    const response = await fetch(`${API_BASE}/api/users/profile`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(updates),
+    })
+
+    if (!response.ok) {
+      throw new Error(`Failed to update user profile: ${response.statusText}`)
+    }
+
+    return response.json()
+  },
 
   async getUserPreferences(): Promise<ApiResponse<UserPreferences>> {
-    const { data } = await this.client.get('/api/users/preferences')
-    return data
-  }
+    const response = await fetch(`${API_BASE}/api/users/preferences`)
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch user preferences: ${response.statusText}`)
+    }
+
+    return response.json()
+  },
 
   async updateUserPreferences(preferences: UserPreferences): Promise<ApiResponse<UserPreferences>> {
-    const { data } = await this.client.put('/api/users/preferences', preferences)
-    return data
-  }
+    const response = await fetch(`${API_BASE}/api/users/preferences`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(preferences),
+    })
+
+    if (!response.ok) {
+      throw new Error(`Failed to update user preferences: ${response.statusText}`)
+    }
+
+    return response.json()
+  },
 
   async saveGadget(gadgetId: string, action: 'save' | 'unsave') {
-    const { data } = await this.client.post('/api/users/save-gadget', {
-      gadget_id: gadgetId,
-      action
+    const response = await fetch(`${API_BASE}/api/users/save-gadget`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ gadget_id: gadgetId, action }),
     })
-    return data
-  }
 
-  // Feedback API
+    if (!response.ok) {
+      throw new Error(`Failed to save gadget: ${response.statusText}`)
+    }
+
+    return response.json()
+  },
+
   async submitFeedback(feedback: {
     recommendation_id?: string
     text?: string
     rating?: number
   }): Promise<ApiResponse<Feedback>> {
-    const { data } = await this.client.post('/api/feedback', feedback)
-    return data
-  }
+    const response = await fetch(`${API_BASE}/api/feedback`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(feedback),
+    })
+
+    if (!response.ok) {
+      throw new Error(`Failed to submit feedback: ${response.statusText}`)
+    }
+
+    return response.json()
+  },
 
   async getFeedback(limit = 10, offset = 0): Promise<PaginatedResponse<Feedback>> {
-    const { data } = await this.client.get('/api/feedback', {
-      params: { limit, offset }
-    })
-    return data
-  }
+    const params = new URLSearchParams()
+    params.append('limit', limit.toString())
+    params.append('offset', offset.toString())
 
-  // Health check
+    const response = await fetch(`${API_BASE}/api/feedback?${params}`)
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch feedback: ${response.statusText}`)
+    }
+
+    return response.json()
+  },
+
   async healthCheck() {
-    const { data } = await this.client.get('/health')
-    return data
+    const response = await fetch(`${API_BASE}/health`)
+
+    if (!response.ok) {
+      throw new Error(`Failed to perform health check: ${response.statusText}`)
+    }
+
+    return response.json()
   }
 }
-
-export const apiService = new ApiService()

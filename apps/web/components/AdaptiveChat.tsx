@@ -355,6 +355,29 @@ export default function AdaptiveChat({ onRecommendationsReceived, onUIConfigUpda
                 </div>
               )}
             </div>
+
+            {/* Input Area inside chat column (no overlay) */}
+            <div className="border-t bg-white p-3 md:p-4">
+              <div className="flex items-end gap-2 max-w-3xl">
+                <div className="flex-1">
+                  <label htmlFor="chat-input" className="sr-only">Message</label>
+                  <textarea
+                    id="chat-input"
+                    ref={inputRef}
+                    rows={1}
+                    value={input}
+                    onChange={handleInputChange}
+                    onKeyDown={handleKeyDown}
+                    placeholder="Type a message… Enter to send, Shift+Enter for newline"
+                    className="w-full resize-none px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 leading-relaxed max-h-40"
+                    disabled={isLoading}
+                  />
+                </div>
+                <Button onClick={() => sendMessage(input)} disabled={isLoading || !input.trim()} className="px-5">
+                  {isLoading ? '⏳' : 'Send'}
+                </Button>
+              </div>
+            </div>
           </div>
           {/* Facets sidebar (desktop) */}
           <aside className="hidden lg:block border-l bg-gray-50 h-full overflow-auto p-4">
@@ -392,28 +415,8 @@ export default function AdaptiveChat({ onRecommendationsReceived, onUIConfigUpda
           </aside>
         </div>
       </div>
-      {/* Docked Input Area */}
-      <div className="border-t bg-white p-3 md:p-4 sticky bottom-0 z-10 [padding-bottom:env(safe-area-inset-bottom)]">
-        <div className="flex items-end gap-2 max-w-3xl mx-auto">
-          <div className="flex-1">
-            <label htmlFor="chat-input" className="sr-only">Message</label>
-            <textarea
-              id="chat-input"
-              ref={inputRef}
-              rows={1}
-              value={input}
-              onChange={handleInputChange}
-              onKeyDown={handleKeyDown}
-              placeholder="Type a message… Press Enter to send, Shift+Enter for newline"
-              className="w-full resize-none px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 leading-relaxed max-h-40"
-              disabled={isLoading}
-            />
-          </div>
-          <Button onClick={() => sendMessage(input)} disabled={isLoading || !input.trim()} className="px-5">
-            {isLoading ? '⏳' : 'Send'}
-          </Button>
-        </div>
-      </div>
+      {/* Bottom safe-area spacer for mobile */}
+      <div className="h-[env(safe-area-inset-bottom)]" aria-hidden />
     </div>
   )
 }

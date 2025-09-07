@@ -597,7 +597,35 @@ ALWAYS PROGRESS TO RECOMMENDATIONS - DO NOT LOOP IN DISCOVERY!`;
         };
     }
     async generateAdaptiveRecommendationsForUser(userId, preferences = {}, context = {}) {
-        return [];
+        try {
+            const userQuery = {
+                purpose: Array.isArray(preferences.use_cases) ? preferences.use_cases : (typeof preferences.use_cases === 'string' ? [preferences.use_cases] : []),
+                budget: {
+                    min: preferences.budget_range?.[0] ?? 300,
+                    max: preferences.budget_range?.[1] ?? 3000
+                },
+                brands: Array.isArray(preferences.preferred_brands) ? preferences.preferred_brands : [],
+                specs: preferences.specs || {},
+                priorities: preferences.priorities || [],
+                text: context.query_text || ''
+            };
+            const recs = await mlRecommender_1.default.getRecommendations(userQuery, userId || 'anonymous', (0, node_crypto_1.randomUUID)());
+            return recs.map(r => ({
+                laptop: r.laptop,
+                rank: r.score > 0.85 ? 1 : r.score > 0.7 ? 2 : 3,
+                score: r.score,
+                reasoning: r.reasonings?.join('. ') || '',
+                highlights: r.highlights,
+                warnings: r.warnings,
+                valueScore: r.valueScore,
+                similarityScore: r.similarityScore,
+                recencyScore: r.recencyScore
+            }));
+        }
+        catch (e) {
+            logger_1.default.error('generateAdaptiveRecommendationsForUser failed:', e);
+            return [];
+        }
     }
     generateFallbackUI(userInput) {
         const lowerInput = userInput.toLowerCase();

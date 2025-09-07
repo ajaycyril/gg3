@@ -685,7 +685,35 @@ ALWAYS PROGRESS TO RECOMMENDATIONS - DO NOT LOOP IN DISCOVERY!`;
     preferences: Record<string, any> = {},
     context: Record<string, any> = {}
   ): Promise<any[]> {
-    return [];
+    try {
+      const userQuery = {
+        purpose: Array.isArray(preferences.use_cases) ? preferences.use_cases : (typeof preferences.use_cases === 'string' ? [preferences.use_cases] : []),
+        budget: {
+          min: preferences.budget_range?.[0] ?? 300,
+          max: preferences.budget_range?.[1] ?? 3000
+        },
+        brands: Array.isArray(preferences.preferred_brands) ? preferences.preferred_brands : [],
+        specs: preferences.specs || {},
+        priorities: preferences.priorities || [],
+        text: context.query_text || ''
+      } as any;
+
+      const recs = await mlRecommender.getRecommendations(userQuery, userId || 'anonymous', randomUUID());
+      return recs.map(r => ({
+        laptop: r.laptop,
+        rank: r.score > 0.85 ? 1 : r.score > 0.7 ? 2 : 3,
+        score: r.score,
+        reasoning: r.reasonings?.join('. ') || '',
+        highlights: r.highlights,
+        warnings: r.warnings,
+        valueScore: r.valueScore,
+        similarityScore: r.similarityScore,
+        recencyScore: r.recencyScore
+      }));
+    } catch (e) {
+      logger.error('generateAdaptiveRecommendationsForUser failed:', e);
+      return [];
+    }
   }
 
   private generateFallbackUI(userInput: string): DynamicUIElement[] {

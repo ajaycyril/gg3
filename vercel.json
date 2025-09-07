@@ -1,36 +1,6 @@
 {
   "version": 2,
   "name": "gadgetguru-v0",
-  "builds": [
-    {
-      "src": "apps/web/package.json",
-      "use": "@vercel/next",
-      "config": {
-        "maxDuration": 30
-      }
-    }
-  ],
-  "routes": [
-    {
-      "src": "/api/(.*)",
-      "dest": "/apps/web/app/api/$1"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/apps/web/$1"
-    }
-  ],
-  "functions": {
-    "apps/web/app/api/**/*.js": {
-      "runtime": "edge"
-    },
-    "apps/web/app/api/**/*.ts": {
-      "runtime": "edge"
-    },
-    "apps/api/src/**/*.ts": {
-      "runtime": "nodejs18.x"
-    }
-  },
   "env": {
     "NEXT_PUBLIC_SUPABASE_URL": "@supabase_url",
     "NEXT_PUBLIC_SUPABASE_ANON_KEY": "@supabase_anon_key",
@@ -64,11 +34,5 @@
   "devCommand": "cd apps/web && npm run dev",
   "installCommand": "pnpm install",
   "outputDirectory": "apps/web/.next",
-  "framework": "nextjs",
-  "rewrites": [
-    {
-      "source": "/api/(.*)",
-      "destination": "/api/$1"
-    }
-  ]
+  "framework": "nextjs"
 }

@@ -188,6 +188,7 @@ export default function DynamicLaptopGrid({
     const specs = getSpecsDisplay(laptop)
     const averageRating = getAverageRating(laptop.reviews)
     const isCompact = viewMode === 'list' || uiConfig?.layout?.density === 'compact'
+    const rec = (recommendations as any[]).find((r) => r?.laptop?.id === laptop.id)
 
     return (
       <motion.div
@@ -224,6 +225,28 @@ export default function DynamicLaptopGrid({
               </div>
             ))}
           </div>
+
+          {/* Recommendation badges and confidence meter */}
+          {!isCompact && rec && (
+            <div className="mb-3 w-full">
+              <div className="h-2 w-full bg-[hsl(var(--muted))] rounded">
+                <div
+                  className="h-2 bg-[hsl(var(--ring))] rounded"
+                  style={{ width: `${Math.min(100, Math.max(0, Math.round(((rec.score || 0) * 100))))}%` }}
+                  title={`Confidence ${(rec.score*100|0)}%`}
+                />
+              </div>
+              {Array.isArray(rec.highlights) && rec.highlights.length > 0 && (
+                <div className="flex flex-wrap gap-1 mt-2">
+                  {rec.highlights.slice(0,3).map((h: string, i: number) => (
+                    <span key={i} className="px-2 py-0.5 rounded-full border border-[hsl(var(--border))] text-[11px] text-[hsl(var(--muted-foreground))]">
+                      {h}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Reviews Preview */}
           {laptop.reviews && laptop.reviews.length > 0 && (

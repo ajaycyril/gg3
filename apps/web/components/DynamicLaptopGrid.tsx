@@ -255,6 +255,13 @@ export default function DynamicLaptopGrid({
     </div>
   )
 
+  const gridKey = `${viewMode}-${uiConfig?.layout?.density}-${uiConfig?.content?.spec_detail_level}`
+
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    show: { opacity: 1, transition: { staggerChildren: 0.06 } }
+  }
+
   return (
     <div className="space-y-4">
       {/* Controls */}
@@ -299,13 +306,13 @@ export default function DynamicLaptopGrid({
       </div>
 
       {/* Laptop Grid */}
-      <div className={getGridClasses()}>
+      <motion.div key={gridKey} className={getGridClasses()} variants={containerVariants} initial="hidden" animate="show">
         {loading
           ? Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)
           : displayedLaptops.map(laptop => (
               <LaptopCard key={laptop.id} laptop={laptop} />
             ))}
-      </div>
+      </motion.div>
 
       {/* No Results */}
       {displayedLaptops.length === 0 && (

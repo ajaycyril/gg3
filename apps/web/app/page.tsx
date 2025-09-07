@@ -36,6 +36,16 @@ export default function HomePage() {
     return () => window.removeEventListener('open-compare' as any, handler)
   }, [activeView, recommendations.length])
 
+  // Open details from GadgetCard anywhere
+  useEffect(() => {
+    const handler = (e: any) => {
+      const g = e?.detail?.gadget
+      if (g) setSelectedLaptop(g)
+    }
+    window.addEventListener('open-details' as any, handler)
+    return () => window.removeEventListener('open-details' as any, handler)
+  }, [])
+
   // Initialize the adaptive interface
   useEffect(() => {
     initializeAdaptiveInterface()

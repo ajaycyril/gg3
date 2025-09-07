@@ -19,13 +19,14 @@ export function Button({
     <button
       className={cn(
         // Base styles
-        "inline-flex items-center justify-center rounded-md font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 disabled:pointer-events-none disabled:opacity-50",
+        "inline-flex items-center justify-center rounded-md font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 disabled:pointer-events-none disabled:opacity-50",
+        "focus-visible:ring-[hsl(var(--ring))]",
         // Variants - using standard Tailwind colors
         {
-          'bg-blue-600 text-white hover:bg-blue-700': variant === 'primary',
-          'bg-gray-600 text-white hover:bg-gray-700': variant === 'secondary',
-          'border border-gray-300 bg-white hover:bg-gray-50 text-gray-900': variant === 'outline',
-          'hover:bg-gray-100 text-gray-900': variant === 'ghost',
+          'bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:brightness-95': variant === 'primary',
+          'bg-[hsl(var(--secondary))] text-[hsl(var(--secondary-foreground))] hover:brightness-95': variant === 'secondary',
+          'border border-[hsl(var(--border))] bg-white hover:bg-[hsl(var(--muted))] text-gray-900': variant === 'outline',
+          'hover:bg-[hsl(var(--muted))] text-gray-900': variant === 'ghost',
         },
         // Sizes
         {

@@ -124,7 +124,7 @@ export function GadgetCard({ gadget, onSave, isSaved = false, showFullDetails = 
 
         {/* Actions */}
         <div className="flex items-center justify-between gap-2">
-          <Button variant="primary" size="sm" className="flex-1" onClick={(e) => { e.stopPropagation(); /* optional hook up: window.dispatchEvent(new CustomEvent('open-details',{detail:{id:gadget.id}})) */ }}>
+          <Button variant="primary" size="sm" className="flex-1" onClick={(e) => { e.stopPropagation(); window.dispatchEvent(new CustomEvent('open-details',{ detail: { gadget } })) }}>
             View Details
           </Button>
           

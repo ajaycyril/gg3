@@ -40,7 +40,7 @@ export default function AdaptiveChat({ onRecommendationsReceived, onUIConfigUpda
   const [facets, setFacets] = useState<any | null>(null)
   const [nextQuestion, setNextQuestion] = useState<any | null>(null)
   const [showFilters, setShowFilters] = useState(false)
-  const [desktopFiltersVisible, setDesktopFiltersVisible] = useState(true)
+  const [desktopFiltersVisible, setDesktopFiltersVisible] = useState(false)
   const messagesRef = React.useRef<HTMLDivElement | null>(null)
   const inputRef = useRef<HTMLTextAreaElement | null>(null)
   const [isAtBottom, setIsAtBottom] = useState(true)

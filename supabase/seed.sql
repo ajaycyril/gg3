@@ -375,3 +375,13 @@ INSERT INTO public.tenant_api_keys (
 -- Refresh materialized views
 REFRESH MATERIALIZED VIEW public.mv_latest_offers;
 REFRESH MATERIALIZED VIEW public.mv_category_attributes;
+-- Sample laptops with rich specs for demo
+insert into public.gadgets (id, name, brand, price, image_url, link, specs, created_at) values
+  (gen_random_uuid(), 'ASUS TUF Gaming F15 (2024)', 'ASUS', 999, null, 'https://example.com/asus-tuf-f15',
+   '{"cpu":"Intel Core i7-12650H","gpu":"NVIDIA RTX 4060 8GB","ram":"16GB DDR5","storage":"512GB NVMe SSD","display":"15.6\" 144Hz FHD","battery":"90Wh","ports":["USB-C","HDMI 2.1","USB-A"],"weight":"2.2kg"}', now()),
+  (gen_random_uuid(), 'MacBook Air 15 (M2)', 'Apple', 1799, null, 'https://example.com/macbook-air-15',
+   '{"cpu":"Apple M2","gpu":"Integrated 10-core","ram":"16GB unified","storage":"512GB SSD","display":"15.3\" Liquid Retina","battery":"18 hours","ports":["Thunderbolt 3","MagSafe"],"weight":"1.5kg"}', now()),
+  (gen_random_uuid(), 'Dell XPS 13 Plus', 'Dell', 1899, null, 'https://example.com/dell-xps-13-plus',
+   '{"cpu":"Intel Core i7-1360P","gpu":"Intel Iris Xe","ram":"32GB LPDDR5","storage":"1TB NVMe","display":"13.4\" 3.5K OLED","battery":"55Wh","ports":["Thunderbolt 4"],"weight":"1.23kg"}', now()),
+  (gen_random_uuid(), 'Lenovo Legion Pro 5', 'Lenovo', 1499, null, 'https://example.com/legion-pro-5',
+   '{"cpu":"AMD Ryzen 7 7840HS","gpu":"NVIDIA RTX 4070 8GB","ram":"32GB DDR5","storage":"1TB NVMe","display":"16\" 240Hz WQXGA","battery":"80Wh","ports":["USB-C PD","HDMI 2.1","USB-A"],"weight":"2.5kg"}', now());

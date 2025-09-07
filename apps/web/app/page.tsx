@@ -324,27 +324,6 @@ export default function HomePage() {
                 : 'col-span-1'
             }`}>
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 h-[600px]">
-            <div className="flex items-center justify-end p-2 border-b">
-              <div className="text-xs mr-2 text-[hsl(var(--muted-foreground))]">Mode:</div>
-              <div className="flex border rounded-md overflow-hidden">
-                {[
-                  { key: 'guided', label: 'Guided' },
-                  { key: 'chat', label: 'Chat' }
-                ].map(({ key, label }) => (
-                  <button
-                    key={key}
-                    onClick={() => setUseGuided(key==='guided')}
-                    className={`px-3 py-1 text-xs ${
-                      (useGuided && key==='guided') || (!useGuided && key==='chat')
-                        ? 'bg-[hsl(var(--ring))] text-white'
-                        : 'bg-white hover:bg-[hsl(var(--muted))]'
-                    }`}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </div>
             {useGuided ? (
               <GuidedFlow
                 onRecommendations={(recs) => {

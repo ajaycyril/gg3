@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Button } from '@/components/ui/Button'
 import { api } from '@/lib/api'
@@ -16,6 +16,8 @@ export default function GuidedFlow({ onRecommendations, onDone }: GuidedFlowProp
   const [budget, setBudget] = useState<{ min: number; max: number }>({ min: 800, max: 2500 })
   const [brands, setBrands] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
+  const [liveLoading, setLiveLoading] = useState(false)
+  const [liveRecs, setLiveRecs] = useState<any[]>([])
 
   const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { when: 'beforeChildren', staggerChildren: 0.06 } } }
   const item = { hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }
@@ -42,6 +44,32 @@ export default function GuidedFlow({ onRecommendations, onDone }: GuidedFlowProp
       setLoading(false)
     }
   }
+
+  // Live recommendations: update as the user selects signals
+  useEffect(() => {
+    let t: any
+    const ready = purpose || brands.length > 0 || (budget.min && budget.max)
+    if (!ready) return
+    t = setTimeout(async () => {
+      try {
+        setLiveLoading(true)
+        const prefs: any = {
+          budget_range: [budget.min, budget.max],
+          preferred_brands: brands,
+          use_cases: purpose ? [purpose] : []
+        }
+        const res = await api.getAIRecommendations(prefs, {})
+        const data = (res as any)?.data || []
+        setLiveRecs(data)
+        // Continuously inform parent so the grid updates live
+        onRecommendations(data)
+      } finally {
+        setLiveLoading(false)
+      }
+    }, 400)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [purpose, budget.min, budget.max, brands.join(',')])
 
   return (
     <div className="h-full flex flex-col">
@@ -102,6 +130,7 @@ export default function GuidedFlow({ onRecommendations, onDone }: GuidedFlowProp
               </div>
               <div className="mt-4 flex gap-2">
                 <Button variant="outline" onClick={back}>Back</Button>
+                <Button onClick={next}>Next</Button>
               </div>
             </motion.div>
           )}
@@ -116,7 +145,7 @@ export default function GuidedFlow({ onRecommendations, onDone }: GuidedFlowProp
                   </motion.button>
                 ))}
               </motion.div>
-              <div className="mt-4 flex gap-2">
+              <div className="mt-4 flex gap-2 items-center">
                 <Button variant="outline" onClick={back}>Back</Button>
                 <button className="text-xs text-[hsl(var(--muted-foreground))] underline" onClick={next}>Skip</button>
               </div>
@@ -133,11 +162,34 @@ export default function GuidedFlow({ onRecommendations, onDone }: GuidedFlowProp
               </ul>
               <div className="mt-4 flex gap-2">
                 <Button variant="outline" onClick={back}>Back</Button>
-                <Button onClick={fetchRecs} loading={loading}>Get Recommendations</Button>
+                <Button onClick={fetchRecs} loading={loading}>Show All</Button>
               </div>
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* Live matches panel */}
+        <div className="mt-6">
+          <div className="flex items-center justify-between mb-2">
+            <h4 className="text-sm font-semibold">Live Matches</h4>
+            {liveLoading && <span className="text-xs text-[hsl(var(--muted-foreground))]">Updating…</span>}
+          </div>
+          {liveRecs.length === 0 ? (
+            <p className="text-sm text-[hsl(var(--muted-foreground))]">Adjust your choices to see matches.</p>
+          ) : (
+            <div className="space-y-3">
+              {liveRecs.slice(0, 5).map((r, i) => (
+                <div key={i} className="border border-[hsl(var(--border))] rounded-md p-3 flex items-center justify-between">
+                  <div>
+                    <div className="font-medium text-sm">{r.laptop?.name} <span className="text-[hsl(var(--muted-foreground))]">({r.laptop?.brand})</span></div>
+                    <div className="text-xs text-[hsl(var(--muted-foreground))]">{r.reasoning}</div>
+                  </div>
+                  <div className="text-sm font-semibold">{r.laptop?.price ? `$${r.laptop.price}` : 'TBA'}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )

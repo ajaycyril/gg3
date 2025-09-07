@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/Button'
 import { UIConfiguration } from '@gadgetguru/shared'
 
 export default function HomePage() {
-  const { user } = useAuth()
+  const { user, signOut, signInWithProvider, loading } = useAuth()
   const [laptops, setLaptops] = useState([])
   const [recommendations, setRecommendations] = useState([])
   const [uiConfig, setUiConfig] = useState<UIConfiguration | null>(null)
@@ -225,17 +225,17 @@ export default function HomePage() {
             {user ? (
               <div className="flex items-center space-x-4">
                 <span className="text-sm text-gray-600">Welcome, {user.email}</span>
-                <Button variant="outline" size="sm">
-                  Profile
+                <Button variant="outline" size="sm" onClick={() => signOut()}>
+                  Sign Out
                 </Button>
               </div>
             ) : (
               <div className="flex items-center space-x-2">
-                <Button variant="outline" size="sm">
-                  Sign In
+                <Button variant="outline" size="sm" onClick={() => signInWithProvider('google')} disabled={loading}>
+                  {loading ? '...' : 'Sign In'}
                 </Button>
-                <Button size="sm">
-                  Sign Up
+                <Button size="sm" onClick={() => signInWithProvider('google')} disabled={loading}>
+                  {loading ? '...' : 'Sign Up'}
                 </Button>
               </div>
             )}
@@ -252,7 +252,7 @@ export default function HomePage() {
           {(activeView === 'chat' || activeView === 'split') && (
             <div className={`${
               activeView === 'split' 
-                ? (uiConfig?.layout.sidebar_visible ? 'lg:col-span-1' : 'lg:col-span-1')
+                ? (uiConfig?.layout.sidebar_visible ? 'lg:col-span-2' : 'lg:col-span-2')
                 : 'col-span-1'
             }`}>
               <div className="bg-white rounded-lg shadow-sm border border-gray-200 h-[600px]">
@@ -268,7 +268,7 @@ export default function HomePage() {
           {(activeView === 'browse' || activeView === 'split') && (
             <div className={`${
               activeView === 'split' 
-                ? (uiConfig?.layout.sidebar_visible ? 'lg:col-span-2' : 'lg:col-span-1')
+                ? (uiConfig?.layout.sidebar_visible ? 'lg:col-span-1' : 'lg:col-span-1')
                 : 'col-span-1'
             }`}>
               <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -312,6 +312,56 @@ export default function HomePage() {
           </div>
         )}
       </main>
+
+      {/* Details Modal */}
+      {selectedLaptop && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setSelectedLaptop(null)}
+        >
+          <div
+            className="w-full max-w-2xl bg-white rounded-lg shadow-lg border border-gray-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between p-4 border-b">
+              <div>
+                <h3 className="text-lg font-semibold">{selectedLaptop.name}</h3>
+                <p className="text-sm text-gray-600">{selectedLaptop.brand}</p>
+              </div>
+              <button
+                onClick={() => setSelectedLaptop(null)}
+                className="px-3 py-1 text-sm rounded-md border hover:bg-gray-50"
+                aria-label="Close"
+              >
+                Close
+              </button>
+            </div>
+            <div className="p-4 max-h-[70vh] overflow-y-auto">
+              {selectedLaptop.price && (
+                <div className="mb-3 text-xl font-bold text-green-600">${selectedLaptop.price?.toLocaleString?.() || selectedLaptop.price}</div>
+              )}
+              {selectedLaptop.description && (
+                <p className="mb-4 text-gray-700 whitespace-pre-wrap">{selectedLaptop.description}</p>
+              )}
+              {selectedLaptop.specs && (
+                <div>
+                  <h4 className="font-medium mb-2">Specifications</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                    {Object.entries(selectedLaptop.specs).slice(0,20).map(([k,v]) => (
+                      <div key={k} className="flex justify-between gap-3">
+                        <span className="text-gray-600 capitalize">{k.replace(/_/g,' ')}</span>
+                        <span className="font-medium text-gray-900 text-right break-words">{typeof v === 'object' ? JSON.stringify(v) : String(v)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Footer */}
       <footer className="bg-white border-t border-gray-200 mt-12">

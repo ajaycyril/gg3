@@ -239,7 +239,7 @@ export default function AdaptiveChat({ onRecommendationsReceived, onUIConfigUpda
   }
 
   return (
-    <div className="flex flex-col h-full max-w-6xl mx-auto">
+    <div className="flex flex-col h-full max-w-6xl mx-auto min-h-0">
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b bg-white/80 backdrop-blur sticky top-0 z-10">
         <div>
@@ -284,10 +284,10 @@ export default function AdaptiveChat({ onRecommendationsReceived, onUIConfigUpda
       </div>
 
       {/* Main Grid: Chat + Facets (desktop) */}
-      <div className="flex-1 overflow-hidden">
-        <div className="h-full grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div className="flex-1 overflow-hidden min-h-0">
+        <div className="h-full grid grid-cols-1 lg:grid-cols-3 gap-4 min-h-0">
           {/* Chat column */}
-          <div className="lg:col-span-2 flex flex-col h-full">
+          <div className="lg:col-span-2 flex flex-col h-full min-h-0">
             {/* Facets (mobile) */}
             {showFilters && (
               <div className="p-4 border-b bg-gray-50 lg:hidden">
@@ -330,7 +330,7 @@ export default function AdaptiveChat({ onRecommendationsReceived, onUIConfigUpda
             )}
 
             {/* Messages area */}
-            <div ref={messagesRef} role="log" aria-live="polite" className="relative flex-1 overflow-y-auto p-4 space-y-4 bg-white">
+            <div ref={messagesRef} role="log" aria-live="polite" className="relative flex-1 overflow-y-auto p-4 space-y-4 bg-white min-h-0">
               <AnimatePresence initial={false}>
                 {messages.map((message, index) => (
                   <motion.div
@@ -502,7 +502,7 @@ function DynamicUIRenderer({ element, onAction }: {
           onClick={() => onAction(element)}
           variant="outline"
           size="sm"
-          className="mr-2 mb-2"
+          className="mr-2 mb-2 normal-case whitespace-normal break-words"
         >
           {element.label}
         </Button>

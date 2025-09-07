@@ -1,20 +1,20 @@
 {
   "/_not-found": "app/_not-found.js",
-  "/page": "app/page.js",
-  "/api/ai/recommendations/route": "app/api/ai/recommendations/route.js",
-  "/api/ai/health/route": "app/api/ai/health/route.js",
-  "/api/recommendations/[id]/route": "app/api/recommendations/[id]/route.js",
   "/api/ai/chat/route": "app/api/ai/chat/route.js",
   "/api/feedback/route": "app/api/feedback/route.js",
+  "/api/ai/ui-config/route": "app/api/ai/ui-config/route.js",
+  "/api/recommendations/[id]/route": "app/api/recommendations/[id]/route.js",
   "/api/recommendations/route": "app/api/recommendations/route.js",
   "/api/users/profile/route": "app/api/users/profile/route.js",
+  "/page": "app/page.js",
+  "/api/ai/recommendations/route": "app/api/ai/recommendations/route.js",
   "/api/users/save-gadget/route": "app/api/users/save-gadget/route.js",
   "/api/users/preferences/route": "app/api/users/preferences/route.js",
-  "/api/ai/ui-config/route": "app/api/ai/ui-config/route.js",
+  "/api/ai/health/route": "app/api/ai/health/route.js",
   "/api/ai/facets/route": "app/api/ai/facets/route.js",
+  "/api/gadgets/[id]/route": "app/api/gadgets/[id]/route.js",
+  "/api/ai/next-question/route": "app/api/ai/next-question/route.js",
   "/api/gadgets/brands/route": "app/api/gadgets/brands/route.js",
   "/api/gadgets/categories/route": "app/api/gadgets/categories/route.js",
-  "/api/gadgets/route": "app/api/gadgets/route.js",
-  "/api/gadgets/[id]/route": "app/api/gadgets/[id]/route.js",
-  "/api/ai/next-question/route": "app/api/ai/next-question/route.js"
+  "/api/gadgets/route": "app/api/gadgets/route.js"
 }

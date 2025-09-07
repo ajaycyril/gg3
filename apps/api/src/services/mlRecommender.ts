@@ -738,7 +738,7 @@ class MLRecommenderService {
 
   private calculateBrandScore(laptop: any, query: UserQuery): number {
     // Brand reputation scoring
-    const brandReputation = {
+    const brandReputation: Record<string, number> = {
       'apple': 0.9,
       'dell': 0.8,
       'hp': 0.7,
@@ -749,8 +749,8 @@ class MLRecommenderService {
       'alienware': 0.8
     };
 
-    const brand = laptop.brand.toLowerCase();
-    const baseScore = brandReputation[brand] || 0.5;
+    const brand = (laptop.brand || '').toLowerCase();
+    const baseScore = brandReputation[brand] ?? 0.5;
 
     // Boost if user specifically requested this brand
     if (query.brands && query.brands.some(b => b.toLowerCase() === brand)) {

@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.tenantMiddleware = void 0;
+exports.requireScopes = exports.tenantMiddleware = void 0;
 const crypto_1 = require("crypto");
 const supabaseClient_1 = require("../db/supabaseClient");
 const logger_1 = __importDefault(require("../utils/logger"));
@@ -115,3 +115,24 @@ const tenantMiddleware = async (req, res, next) => {
     }
 };
 exports.tenantMiddleware = tenantMiddleware;
+/**
+ * Require that the API key includes all specified scopes.
+ */
+const requireScopes = (required) => {
+    const needed = Array.isArray(required) ? required : [required];
+    return (req, res, next) => {
+        try {
+            const scopes = req.tenant?.api_key?.scopes || [];
+            const ok = needed.every((s) => scopes.includes(s));
+            if (!ok) {
+                return res.status(403).json({ error: 'Insufficient scope', required: needed, have: scopes });
+            }
+            next();
+        }
+        catch (err) {
+            logger_1.default.error('requireScopes error:', err);
+            return res.status(500).json({ error: 'Scope check failed' });
+        }
+    };
+};
+exports.requireScopes = requireScopes;

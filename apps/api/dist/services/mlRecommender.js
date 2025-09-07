@@ -651,8 +651,8 @@ class MLRecommenderService {
             'msi': 0.7,
             'alienware': 0.8
         };
-        const brand = laptop.brand.toLowerCase();
-        const baseScore = brandReputation[brand] || 0.5;
+        const brand = (laptop.brand || '').toLowerCase();
+        const baseScore = brandReputation[brand] ?? 0.5;
         // Boost if user specifically requested this brand
         if (query.brands && query.brands.some(b => b.toLowerCase() === brand)) {
             return Math.min(baseScore + 0.2, 1.0);

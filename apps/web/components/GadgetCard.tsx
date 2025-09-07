@@ -59,9 +59,9 @@ export function GadgetCard({ gadget, onSave, isSaved = false, showFullDetails = 
       <div className="p-4">
         {/* Header */}
         <div className="mb-2">
-          <h3 className="font-semibold text-lg text-gray-900 line-clamp-1">{gadget.name}</h3>
+          <h3 className="font-semibold text-lg text-foreground line-clamp-1">{gadget.name}</h3>
           {gadget.brand && (
-            <p className="text-sm text-gray-600">{gadget.brand}</p>
+            <p className="text-sm text-[hsl(var(--muted-foreground))]">{gadget.brand}</p>
           )}
         </div>
 
@@ -97,12 +97,12 @@ export function GadgetCard({ gadget, onSave, isSaved = false, showFullDetails = 
         {/* Key Specs */}
         {gadget.specs && showFullDetails && (
           <div className="mb-3">
-            <h4 className="font-medium text-sm text-gray-700 mb-1">Key Specs:</h4>
+            <h4 className="font-medium text-sm text-[hsl(var(--muted-foreground))] mb-1">Key Specs:</h4>
             <div className="space-y-1">
               {Object.entries(gadget.specs).slice(0, 3).map(([key, value]) => (
                 <div key={key} className="flex justify-between text-sm">
-                  <span className="text-gray-600 capitalize">{key.replace('_', ' ')}:</span>
-                  <span className="text-gray-900 font-medium">{value}</span>
+                  <span className="text-[hsl(var(--muted-foreground))] capitalize">{key.replace('_', ' ')}:</span>
+                  <span className="text-foreground font-medium">{String(value)}</span>
                 </div>
               ))}
             </div>
@@ -112,11 +112,11 @@ export function GadgetCard({ gadget, onSave, isSaved = false, showFullDetails = 
         {/* Recent Review Preview */}
         {gadget.reviews && gadget.reviews.length > 0 && showFullDetails && (
           <div className="mb-3 p-2 bg-gray-50 rounded">
-            <p className="text-xs text-gray-600 mb-1">Recent Review:</p>
-            <p className="text-sm text-gray-800 line-clamp-2">
+            <p className="text-xs text-[hsl(var(--muted-foreground))] mb-1">Recent Review:</p>
+            <p className="text-sm text-foreground line-clamp-2">
               "{gadget.reviews[0].content?.slice(0, 100)}..."
             </p>
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
               - {gadget.reviews[0].author || 'Anonymous'} • {formatDate(gadget.reviews[0].created_at)}
             </p>
           </div>
@@ -142,7 +142,7 @@ export function GadgetCard({ gadget, onSave, isSaved = false, showFullDetails = 
         </div>
 
         {/* Created Date */}
-        <div className="mt-2 text-xs text-gray-500">
+        <div className="mt-2 text-xs text-[hsl(var(--muted-foreground))]">
           Added {formatDate(gadget.created_at)}
         </div>
       </div>

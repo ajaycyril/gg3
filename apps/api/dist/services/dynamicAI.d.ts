@@ -12,16 +12,23 @@ interface DynamicUIElement {
 }
 declare class DynamicAIService {
     private openai?;
-    private readonly MODEL_GPT4;
+    private readonly modelPrimary;
+    private readonly modelFallback;
     private conversations;
+    private cache;
+    private cacheTtlMs;
     constructor();
     private ensureOpenAI;
+    private getFromCache;
+    private putInCache;
+    private isSmallTalk;
     processConversation(userId: string, userInput: string, sessionId?: string, context?: Record<string, any>): Promise<{
         response: string;
         sessionId: string;
         dynamicUI: DynamicUIElement[];
         recommendations?: any[];
         databaseQuery?: any;
+        modelUsed?: string;
     }>;
     private sanitizeFilters;
     private countCandidates;
@@ -31,6 +38,7 @@ declare class DynamicAIService {
     private extractPurposeFromFilters;
     private buildQueryText;
     private buildReasoningText;
+    private composeRecommendationResponse;
     getAdaptiveUIConfig(userId: string, context?: Record<string, any>): Promise<Record<string, any>>;
     generateAdaptiveRecommendationsForUser(userId: string, preferences?: Record<string, any>, context?: Record<string, any>): Promise<any[]>;
     private generateFallbackUI;

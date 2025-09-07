@@ -25,4 +25,8 @@ interface TenantContext {
  * Tenant middleware for multi-tenant API access control
  */
 export declare const tenantMiddleware: (req: Request, res: Response, next: NextFunction) => Promise<Response<any, Record<string, any>> | undefined>;
+/**
+ * Require that the API key includes all specified scopes.
+ */
+export declare const requireScopes: (required: string[] | string) => (req: Request, res: Response, next: NextFunction) => Response<any, Record<string, any>> | undefined;
 export {};

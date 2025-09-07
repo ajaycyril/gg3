@@ -240,12 +240,12 @@ router.post('/feedback', async (req, res) => {
       message: 'Feedback recorded successfully'
     });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ Feedback recording failed:', error);
     logger.error('Feedback processing error:', error);
     res.status(500).json({
       error: 'Failed to record feedback',
-      message: error.message
+      message: error?.message || 'unknown'
     });
   }
 });
@@ -299,12 +299,12 @@ router.post('/ml-recommendations', async (req, res) => {
       }))
     });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ ML recommendations failed:', error);
     logger.error('ML recommendation error:', error);
     res.status(500).json({
       error: 'Failed to generate recommendations',
-      message: error.message
+      message: error?.message || 'unknown'
     });
   }
 });
@@ -326,7 +326,7 @@ router.get('/ml-analytics', async (req, res) => {
       }
     });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ ML analytics failed:', error);
     res.status(500).json({
       error: 'Failed to get analytics'

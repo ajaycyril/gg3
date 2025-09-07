@@ -68,6 +68,17 @@ export default function DynamicLaptopGrid({
     }
   }, [uiConfig, laptops, filters, sortBy])
 
+  // Clear local filters when notified by chat actions
+  useEffect(() => {
+    const handler = () => {
+      setFilters({})
+      setSortBy('relevance')
+      setDisplayedLaptops(laptops)
+    }
+    window.addEventListener('clear-filters' as any, handler)
+    return () => window.removeEventListener('clear-filters' as any, handler)
+  }, [laptops])
+
   const applyFiltersAndSort = () => {
     let filtered = [...laptops]
 

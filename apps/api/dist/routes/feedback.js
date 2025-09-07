@@ -205,7 +205,7 @@ router.post('/feedback', async (req, res) => {
         logger_1.default.error('Feedback processing error:', error);
         res.status(500).json({
             error: 'Failed to record feedback',
-            message: error.message
+            message: error?.message || 'unknown'
         });
     }
 });
@@ -246,7 +246,7 @@ router.post('/ml-recommendations', async (req, res) => {
         logger_1.default.error('ML recommendation error:', error);
         res.status(500).json({
             error: 'Failed to generate recommendations',
-            message: error.message
+            message: error?.message || 'unknown'
         });
     }
 });

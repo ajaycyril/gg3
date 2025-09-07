@@ -152,3 +152,23 @@ export const tenantMiddleware = async (
     });
   }
 };
+
+/**
+ * Require that the API key includes all specified scopes.
+ */
+export const requireScopes = (required: string[] | string) => {
+  const needed = Array.isArray(required) ? required : [required]
+  return (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const scopes: string[] = req.tenant?.api_key?.scopes || []
+      const ok = needed.every((s) => scopes.includes(s))
+      if (!ok) {
+        return res.status(403).json({ error: 'Insufficient scope', required: needed, have: scopes })
+      }
+      next()
+    } catch (err) {
+      logger.error('requireScopes error:', err)
+      return res.status(500).json({ error: 'Scope check failed' })
+    }
+  }
+}

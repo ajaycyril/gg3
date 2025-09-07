@@ -7,6 +7,7 @@ import AdaptiveChat from '@/components/AdaptiveChat'
 import DynamicLaptopGrid from '@/components/DynamicLaptopGrid'
 import { Button } from '@/components/ui/Button'
 import { UIConfiguration } from '@gadgetguru/shared'
+import BottomBar from '@/components/BottomBar'
 
 export default function HomePage() {
   const { user, signOut, signInWithProvider, loading } = useAuth()
@@ -17,6 +18,7 @@ export default function HomePage() {
   const [selectedLaptop, setSelectedLaptop] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
   const [compareOpen, setCompareOpen] = useState(false)
+  const effectiveConfig = ensureUIConfig(uiConfig)
 
   const ensureUIConfig = (prev: UIConfiguration | null): UIConfiguration => prev ?? ({
     layout: { view_mode: 'cards', density: 'normal', sidebar_visible: true },
@@ -307,12 +309,12 @@ export default function HomePage() {
                 ? (uiConfig?.layout.sidebar_visible ? 'lg:col-span-2' : 'lg:col-span-2')
                 : 'col-span-1'
             }`}>
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 h-[600px]">
-                <AdaptiveChat
-                  onRecommendationsReceived={handleRecommendationsReceived}
-                  onUIConfigUpdate={handleUIConfigUpdate}
-                />
-              </div>
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 h-[600px]">
+            <AdaptiveChat
+              onRecommendationsReceived={handleRecommendationsReceived}
+              onUIConfigUpdate={handleUIConfigUpdate}
+            />
+          </div>
             </div>
           )}
 
@@ -326,7 +328,7 @@ export default function HomePage() {
               <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
                 <DynamicLaptopGrid
                   laptops={laptops}
-                  uiConfig={uiConfig}
+                  uiConfig={effectiveConfig}
                   recommendations={recommendations}
                   onLaptopSelect={handleLaptopSelect}
                   loading={isLoading}
@@ -442,6 +444,24 @@ export default function HomePage() {
           </div>
         </div>
       )}
+
+      {/* Persistent Bottom Utility Bar */}
+      <BottomBar
+        recommendationsCount={recommendations.length}
+        laptopsCount={laptops.length}
+        mode={(effectiveConfig.content.spec_detail_level as 'basic'|'detailed'|'expert')}
+        onChangeMode={(m) => setUiConfig(prev => { const cfg = ensureUIConfig(prev); return { ...cfg, content: { ...cfg.content, spec_detail_level: m } } })}
+        onCompare={() => {
+          setCompareOpen(true)
+          if (activeView === 'chat' && recommendations.length > 0) setActiveView('split')
+        }}
+        onClearFilters={() => {
+          window.dispatchEvent(new CustomEvent('clear-filters'))
+        }}
+        onToggleFilters={() => {
+          window.dispatchEvent(new CustomEvent('toggle-filters'))
+        }}
+      />
 
       {/* Footer */}
       <footer className="bg-white border-t border-gray-200 mt-12">

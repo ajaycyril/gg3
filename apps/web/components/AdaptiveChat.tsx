@@ -40,6 +40,7 @@ export default function AdaptiveChat({ onRecommendationsReceived, onUIConfigUpda
   const [facets, setFacets] = useState<any | null>(null)
   const [nextQuestion, setNextQuestion] = useState<any | null>(null)
   const [showFilters, setShowFilters] = useState(false)
+  const [desktopFiltersVisible, setDesktopFiltersVisible] = useState(true)
   const messagesRef = React.useRef<HTMLDivElement | null>(null)
   const inputRef = useRef<HTMLTextAreaElement | null>(null)
   const [isAtBottom, setIsAtBottom] = useState(true)
@@ -166,6 +167,18 @@ export default function AdaptiveChat({ onRecommendationsReceived, onUIConfigUpda
     return () => node.removeEventListener('scroll', onScroll)
   }, [])
 
+  // Global listeners for external toggles
+  useEffect(() => {
+    const onToggle = () => setDesktopFiltersVisible(v => !v)
+    const onClear = () => setShowFilters(false)
+    window.addEventListener('toggle-filters' as any, onToggle)
+    window.addEventListener('clear-filters' as any, onClear)
+    return () => {
+      window.removeEventListener('toggle-filters' as any, onToggle)
+      window.removeEventListener('clear-filters' as any, onClear)
+    }
+  }, [])
+
   // Input handlers: auto-resize and keyboard shortcuts
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const ta = e.target
@@ -289,7 +302,13 @@ export default function AdaptiveChat({ onRecommendationsReceived, onUIConfigUpda
           <p className="text-sm text-gray-600">Never buy a sub‑optimal laptop again</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => setShowFilters(!showFilters)}>
+          <Button variant="outline" size="sm" onClick={() => {
+            if (typeof window !== 'undefined' && window.innerWidth >= 1024) {
+              setDesktopFiltersVisible(v => !v)
+            } else {
+              setShowFilters(!showFilters)
+            }
+          }}>
             {showFilters ? 'Hide Filters' : 'Show Filters'}
           </Button>
           <Button
@@ -304,7 +323,16 @@ export default function AdaptiveChat({ onRecommendationsReceived, onUIConfigUpda
                   { type: 'button', id: 'start', label: '🚀 Let\'s Find My Laptop', action: 'start_search', priority: 1 }
                 ]
               }])
+              // Reset conversation state
               setSessionId(null)
+              setCurrentDynamicUI([])
+              setFilters({})
+              setFacets(null)
+              setNextQuestion(null)
+              // Notify other views (e.g., grid) to clear their local filters
+              if (typeof window !== 'undefined') {
+                window.dispatchEvent(new CustomEvent('clear-filters'))
+              }
             }}
             title="Start a new chat"
           >
@@ -317,6 +345,10 @@ export default function AdaptiveChat({ onRecommendationsReceived, onUIConfigUpda
               setFilters({})
               setFacets(null)
               setNextQuestion(null)
+              // Inform other components to clear their filter state
+              if (typeof window !== 'undefined') {
+                window.dispatchEvent(new CustomEvent('clear-filters'))
+              }
             }}
             title="Clear filters"
           >
@@ -487,7 +519,7 @@ export default function AdaptiveChat({ onRecommendationsReceived, onUIConfigUpda
             </div>
           </div>
           {/* Facets sidebar (desktop) */}
-          <aside className="hidden lg:block border-l bg-gray-50 h-full overflow-auto p-4">
+          <aside className={`${desktopFiltersVisible ? 'hidden lg:block' : 'hidden'} border-l bg-gray-50 h-full overflow-auto p-4`}>
             <div className="text-xs text-gray-600 mb-2">Candidates: {facets?.candidates ?? '—'}</div>
             <div className="mb-3">
               <div className="text-sm font-medium mb-1">Top Brands</div>

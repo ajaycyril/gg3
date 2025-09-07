@@ -57,3 +57,12 @@
     @apply bg-background text-foreground antialiased leading-7;
   }
 }
+
+/* Respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}

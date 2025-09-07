@@ -80,7 +80,7 @@ export default function AdaptiveChat({ onRecommendationsReceived, onUIConfigUpda
 
         setMessages(prev => [...prev, aiMessage])
         setSessionId(response.data.sessionId)
-        setCurrentDynamicUI(response.data.dynamicUI || [])
+        setCurrentDynamicUI(((response.data as any).dynamicUI || (response.data as any).suggestedActions || []) as any)
         
         // Send recommendations to parent component
         if (response.data.recommendations && response.data.recommendations.length > 0) {

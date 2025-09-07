@@ -33,8 +33,8 @@ export async function POST(req: NextRequest) {
       meta: { openai: openaiUsed, model: result.modelUsed || process.env.MODEL_GPT || 'gpt-4o' }
     })
   } catch (err: any) {
-    // Optional fallback only when explicitly enabled
-    if (process.env.AI_FALLBACK !== '1') {
+    // Optional fallback (enabled by default). Set AI_FALLBACK=0 to disable.
+    if (process.env.AI_FALLBACK === '0') {
       return NextResponse.json({ success: false, error: err?.message || 'AI route error' }, { status: 500 })
     }
     try {

@@ -81,7 +81,7 @@ export async function GET(req: NextRequest) {
           ]
         },
         meta: { candidates: n, median, priceGain, brandGain }
-      }})
+      }}, { headers: { 'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=120' }})
     } else {
       // Ask for brand preference from top brands
       return NextResponse.json({ success: true, data: {
@@ -91,10 +91,9 @@ export async function GET(req: NextRequest) {
           options: brandPairs.map(([brand]) => ({ label: brand, value: { brands: [brand] } }))
         },
         meta: { candidates: n, topBrands: brandPairs.map(([b,c])=>({brand:b,count:c})), priceGain, brandGain }
-      }})
+      }}, { headers: { 'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=120' }})
     }
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e?.message || 'next-question error' }, { status: 500 })
   }
 }
-

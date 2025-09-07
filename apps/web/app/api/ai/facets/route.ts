@@ -68,9 +68,12 @@ export async function GET(req: NextRequest) {
         price: { min, max, buckets },
         brands
       }
+    }, {
+      headers: {
+        'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=120'
+      }
     })
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e?.message || 'facets error' }, { status: 500 })
   }
 }
-

@@ -14,7 +14,12 @@ export async function POST(req: NextRequest) {
     const userId: string = (req.headers.get('user-id') as string) || 'anonymous'
 
     // Try full dynamic AI first
-    const result = await dynamicAI.processConversation(userId, message, sessionId, context)
+    let openaiUsed = false
+    const result = await (async () => {
+      const r = await dynamicAI.processConversation(userId, message, sessionId, context)
+      openaiUsed = true
+      return r
+    })()
 
     return NextResponse.json({
       success: true,
@@ -24,7 +29,8 @@ export async function POST(req: NextRequest) {
         dynamicUI: result.dynamicUI,
         recommendations: result.recommendations || [],
         databaseQuery: result.databaseQuery
-      }
+      },
+      meta: { openai: openaiUsed }
     })
   } catch (err: any) {
     // Optional fallback only when explicitly enabled
@@ -70,7 +76,8 @@ export async function POST(req: NextRequest) {
             { type: 'button', id: 'refine', label: 'Refine Search', priority: 2 }
           ],
           recommendations: recs
-        }
+        },
+        meta: { openai: false }
       })
     } catch (_fallbackError) {
       return NextResponse.json({ success: false, error: err?.message || 'AI route error' }, { status: 500 })

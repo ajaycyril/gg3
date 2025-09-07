@@ -33,6 +33,8 @@ class DynamicAIService {
   private openai?: OpenAI;
   private readonly MODEL_GPT4 = 'gpt-4o';
   private conversations: Map<string, ConversationState> = new Map();
+  private cache: Map<string, { data: any; ts: number }> = new Map();
+  private cacheTtlMs = 2 * 60 * 1000; // 2 minutes
 
   constructor() {
     const key = process.env.OPENAI_API_KEY;
@@ -52,6 +54,19 @@ class DynamicAIService {
       }
       this.openai = new OpenAI({ apiKey: key });
     }
+  }
+
+  private getFromCache(key: string) {
+    const hit = this.cache.get(key);
+    if (!hit) return null;
+    if (Date.now() - hit.ts > this.cacheTtlMs) { this.cache.delete(key); return null; }
+    return hit.data;
+  }
+  private putInCache(key: string, data: any) {
+    if (this.cache.size > 100) { // simple LRU trim
+      const firstKey = this.cache.keys().next().value; this.cache.delete(firstKey);
+    }
+    this.cache.set(key, { data, ts: Date.now() });
   }
 
   private isSmallTalk(input: string): boolean {
@@ -83,6 +98,13 @@ class DynamicAIService {
       };
 
       console.log('🤖 Processing dynamic conversation...');
+
+      // Cache gate (cheap semantic key: input + coarse context)
+      const cacheKey = JSON.stringify({ userInput, phase: conversationState.phase, collected: conversationState.collectedData });
+      const cached = this.getFromCache(cacheKey);
+      if (cached) {
+        return { ...cached, sessionId: currentSessionId };
+      }
 
       // Handle smalltalk without forcing recommendations
       if (this.isSmallTalk(userInput)) {
@@ -260,13 +282,16 @@ class DynamicAIService {
         );
       }
 
-      return {
+      const payload = {
         response: aiResponse.response_text,
         sessionId: currentSessionId,
         dynamicUI: aiResponse.ui_elements || [],
         recommendations,
         databaseQuery: aiResponse.database_filter
       };
+
+      this.putInCache(cacheKey, payload);
+      return payload;
 
     } catch (error) {
       console.error('❌ Dynamic AI processing failed:', error);

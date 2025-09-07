@@ -1,8 +1,4 @@
 {
-  "/api/ai/facets/route": "app/api/ai/facets/route.js",
-  "/api/ai/next-question/route": "app/api/ai/next-question/route.js",
-  "/api/gadgets/route": "app/api/gadgets/route.js",
-  "/api/gadgets/brands/route": "app/api/gadgets/brands/route.js",
   "/not-found": "app/not-found.js",
   "/page": "app/page.js"
 }

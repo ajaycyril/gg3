@@ -38,6 +38,8 @@ export default function AdaptiveChat({ onRecommendationsReceived, onUIConfigUpda
   const [filters, setFilters] = useState<{ price_min?: number; price_max?: number; brands?: string[] }>({})
   const [facets, setFacets] = useState<any | null>(null)
   const [nextQuestion, setNextQuestion] = useState<any | null>(null)
+  const [showFilters, setShowFilters] = useState(false)
+  const messagesRef = React.useRef<HTMLDivElement | null>(null)
 
   // Initialize with a simple welcome message
   useEffect(() => {
@@ -137,7 +139,15 @@ export default function AdaptiveChat({ onRecommendationsReceived, onUIConfigUpda
       const nqRes = await fetch(`/api/ai/next-question?filters=${encodeURIComponent(JSON.stringify(next))}`)
       if (nqRes.ok) setNextQuestion((await nqRes.json()).data)
     } catch {}
-  }
+  };
+
+  // Auto-scroll to latest message
+  useEffect(() => {
+    const node = messagesRef.current
+    if (node) {
+      node.scrollTo({ top: node.scrollHeight, behavior: 'smooth' })
+    }
+  }, [messages, isLoading])
 
   const handleDynamicUIAction = (element: DynamicUIElement, value?: any) => {
     let message = ''
@@ -192,64 +202,76 @@ export default function AdaptiveChat({ onRecommendationsReceived, onUIConfigUpda
   }
 
   return (
-    <div className="flex flex-col h-full max-w-4xl mx-auto">
-      {/* Chat Header */}
-      <div className="flex items-center justify-between p-4 border-b">
+    <div className="flex flex-col h-full max-w-6xl mx-auto">
+      {/* Header */}
+      <div className="flex items-center justify-between p-4 border-b bg-white sticky top-0 z-10">
         <div>
           <h2 className="text-lg font-semibold">AI Laptop Advisor</h2>
-          <p className="text-sm text-gray-600">Dynamic AI-powered recommendations</p>
+          <p className="text-sm text-gray-600">Never buy a sub‑optimal laptop again</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => setShowFilters(!showFilters)}>
+            {showFilters ? 'Hide Filters' : 'Show Filters'}
+          </Button>
         </div>
       </div>
 
-      {/* Facets & Next Question */}
-      <div className="p-4 border-b bg-gray-50">
-        {facets && (
-          <div className="mb-3">
-            <div className="text-xs text-gray-600 mb-1">Candidates: {facets.candidates}</div>
-            <div className="mb-2">
-              <div className="text-sm font-medium mb-1">Top Brands</div>
-              <div className="flex flex-wrap gap-2">
-                {facets.brands?.map((b: any) => (
-                  <Button key={b.brand} variant={(filters.brands || []).includes(b.brand) ? 'primary' : 'outline'} size="sm" onClick={() => applyFilterDelta({ brands: [b.brand] })}>{b.brand} ({b.count})</Button>
-                ))}
-              </div>
-            </div>
-            {facets.price?.buckets?.length > 0 && (
-              <div>
-                <div className="text-sm font-medium mb-1">Budget</div>
-                <div className="flex flex-wrap gap-2">
-                  {facets.price.buckets.slice(0,4).map((bk: any, idx: number) => (
-                    <Button key={idx} variant="outline" size="sm" onClick={() => applyFilterDelta({ price_min: bk.min, price_max: bk.max })}>
-                      ${bk.min} - ${bk.max}
-                    </Button>
-                  ))}
-                </div>
+      {/* Main Grid: Chat + Facets (desktop) */}
+      <div className="flex-1 overflow-hidden">
+        <div className="h-full grid grid-cols-1 lg:grid-cols-3 gap-4">
+          {/* Chat column */}
+          <div className="lg:col-span-2 flex flex-col h-full">
+            {/* Facets (mobile) */}
+            {showFilters && (
+              <div className="p-4 border-b bg-gray-50 lg:hidden">
+                {facets && (
+                  <div className="mb-3">
+                    <div className="text-xs text-gray-600 mb-1">Candidates: {facets.candidates}</div>
+                    <div className="mb-2">
+                      <div className="text-sm font-medium mb-1">Top Brands</div>
+                      <div className="flex flex-wrap gap-2">
+                        {facets.brands?.map((b: any) => (
+                          <Button key={b.brand} variant={(filters.brands || []).includes(b.brand) ? 'primary' : 'outline'} size="sm" onClick={() => applyFilterDelta({ brands: [b.brand] })}>{b.brand} ({b.count})</Button>
+                        ))}
+                      </div>
+                    </div>
+                    {facets.price?.buckets?.length > 0 && (
+                      <div>
+                        <div className="text-sm font-medium mb-1">Budget</div>
+                        <div className="flex flex-wrap gap-2">
+                          {facets.price.buckets.slice(0,4).map((bk: any, idx: number) => (
+                            <Button key={idx} variant="outline" size="sm" onClick={() => applyFilterDelta({ price_min: bk.min, price_max: bk.max })}>
+                              ${bk.min} - ${bk.max}
+                            </Button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {nextQuestion?.question && (
+                  <div>
+                    <div className="text-sm font-medium mb-1">{nextQuestion.question.text}</div>
+                    <div className="flex flex-wrap gap-2">
+                      {nextQuestion.question.options?.map((opt: any, idx: number) => (
+                        <Button key={idx} variant="outline" size="sm" onClick={() => applyFilterDelta(opt.value)}>{opt.label}</Button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
-          </div>
-        )}
-        {nextQuestion?.question && (
-          <div>
-            <div className="text-sm font-medium mb-1">{nextQuestion.question.text}</div>
-            <div className="flex flex-wrap gap-2">
-              {nextQuestion.question.options?.map((opt: any, idx: number) => (
-                <Button key={idx} variant="outline" size="sm" onClick={() => applyFilterDelta(opt.value)}>{opt.label}</Button>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
 
-      {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.map((message, index) => (
-          <div key={index} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-[85%] ${message.role === 'user' ? 'order-2' : 'order-1'}`}>
-              <Card className={`p-4 ${
-                message.role === 'user' 
-                  ? 'bg-blue-50 border-blue-200 ml-4' 
-                  : 'bg-white border-gray-200 mr-4'
-              }`}>
+            {/* Messages area */}
+            <div ref={messagesRef} className="flex-1 overflow-y-auto p-4 space-y-4 bg-white">
+              {messages.map((message, index) => (
+                <div key={index} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`max-w-[85%] ${message.role === 'user' ? 'order-2' : 'order-1'}`}>
+                    <Card className={`p-4 ${
+                      message.role === 'user' 
+                        ? 'bg-blue-50 border-blue-200 ml-4' 
+                        : 'bg-white border-gray-200 mr-4'
+                    }`}>
                 <div className="prose prose-sm max-w-none">
                   <p className="whitespace-pre-wrap">{message.content}</p>
                 </div>
@@ -313,25 +335,62 @@ export default function AdaptiveChat({ onRecommendationsReceived, onUIConfigUpda
         )}
       </div>
 
-      {/* Input Area */}
-      <div className="p-4 border-t">
-        <div className="flex space-x-2">
-          <input
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && sendMessage(input)}
-            placeholder="Type your message or use the buttons above..."
-            className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            disabled={isLoading}
-          />
-          <Button
-            onClick={() => sendMessage(input)}
-            disabled={isLoading || !input.trim()}
-            className="px-6"
-          >
-            {isLoading ? '⏳' : 'Send'}
-          </Button>
+            {/* Input Area */}
+            <div className="p-4 border-t bg-white">
+              <div className="flex space-x-2">
+                <input
+                  type="text"
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && sendMessage(input)}
+                  placeholder="Type your message or use the buttons above..."
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  disabled={isLoading}
+                />
+                <Button
+                  onClick={() => sendMessage(input)}
+                  disabled={isLoading || !input.trim()}
+                  className="px-6"
+                >
+                  {isLoading ? '⏳' : 'Send'}
+                </Button>
+              </div>
+            </div>
+          </div>
+          {/* Facets sidebar (desktop) */}
+          <aside className="hidden lg:block border-l bg-gray-50 h-full overflow-auto p-4">
+            <div className="text-xs text-gray-600 mb-2">Candidates: {facets?.candidates ?? '—'}</div>
+            <div className="mb-3">
+              <div className="text-sm font-medium mb-1">Top Brands</div>
+              <div className="flex flex-wrap gap-2">
+                {facets?.brands?.map((b: any) => (
+                  <Button key={b.brand} variant={(filters.brands || []).includes(b.brand) ? 'primary' : 'outline'} size="sm" onClick={() => applyFilterDelta({ brands: [b.brand] })}>{b.brand} ({b.count})</Button>
+                ))}
+              </div>
+            </div>
+            {facets?.price?.buckets?.length > 0 && (
+              <div className="mb-3">
+                <div className="text-sm font-medium mb-1">Budget</div>
+                <div className="flex flex-wrap gap-2">
+                  {facets.price.buckets.slice(0,6).map((bk: any, idx: number) => (
+                    <Button key={idx} variant="outline" size="sm" onClick={() => applyFilterDelta({ price_min: bk.min, price_max: bk.max })}>
+                      ${bk.min} - ${bk.max}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {nextQuestion?.question && (
+              <div className="mt-4">
+                <div className="text-sm font-medium mb-1">{nextQuestion.question.text}</div>
+                <div className="flex flex-wrap gap-2">
+                  {nextQuestion.question.options?.map((opt: any, idx: number) => (
+                    <Button key={idx} variant="outline" size="sm" onClick={() => applyFilterDelta(opt.value)}>{opt.label}</Button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </aside>
         </div>
       </div>
     </div>

@@ -304,7 +304,9 @@ class DynamicAIService {
 
       // Generate recommendations if we have enough data and confirmed or explicitly asked
       let recommendations: any[] = [];
-      const confirmed = userAskedNow || conversationState.turnCount >= 3;
+      const userConfirmed = /^(yes|yep|yeah|correct|confirm|looks right)/i.test(userInput.trim());
+      const haveSignals = !!(conversationState.collectedData.budget || conversationState.collectedData.purpose || conversationState.collectedData.brands);
+      const confirmed = userAskedNow || userConfirmed || (haveSignals && conversationState.turnCount >= 2);
       if (confirmed) {
         const df = aiResponse.database_filter || {
           price_min: conversationState.collectedData.budget?.min || 300,

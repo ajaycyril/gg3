@@ -221,6 +221,8 @@ export default function AdaptiveChat({ onRecommendationsReceived, onUIConfigUpda
             }
           ] as any)
           return
+        } else if (element.action === 'confirm_filters') {
+          message = 'Show recommendations'
         } else if (element.action === 'compare_top3') {
           // Notify the page to open compare view
           if (typeof window !== 'undefined') {

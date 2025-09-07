@@ -319,6 +319,7 @@ export default function HomePage() {
                   uiConfig={uiConfig}
                   recommendations={recommendations}
                   onLaptopSelect={handleLaptopSelect}
+                  loading={isLoading}
                 />
               </div>
             </div>

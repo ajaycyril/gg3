@@ -45,13 +45,15 @@ interface DynamicLaptopGridProps {
   uiConfig?: UIConfiguration
   onLaptopSelect?: (laptop: Laptop) => void
   recommendations?: any[]
+  loading?: boolean
 }
 
 export default function DynamicLaptopGrid({ 
   laptops, 
   uiConfig, 
   onLaptopSelect, 
-  recommendations = [] 
+  recommendations = [],
+  loading = false
 }: DynamicLaptopGridProps) {
   const [displayedLaptops, setDisplayedLaptops] = useState<Laptop[]>(laptops)
   const [filters, setFilters] = useState<Record<string, any>>({})
@@ -243,6 +245,16 @@ export default function DynamicLaptopGrid({
     )
   }
 
+  const SkeletonCard = () => (
+    <div className="rounded-lg border bg-white p-4 animate-pulse">
+      <div className="h-36 bg-gray-100 rounded mb-3" />
+      <div className="h-4 bg-gray-100 rounded w-3/4 mb-2" />
+      <div className="h-3 bg-gray-100 rounded w-1/2 mb-4" />
+      <div className="h-3 bg-gray-100 rounded w-full mb-2" />
+      <div className="h-3 bg-gray-100 rounded w-5/6" />
+    </div>
+  )
+
   return (
     <div className="space-y-4">
       {/* Controls */}
@@ -288,9 +300,11 @@ export default function DynamicLaptopGrid({
 
       {/* Laptop Grid */}
       <div className={getGridClasses()}>
-        {displayedLaptops.map(laptop => (
-          <LaptopCard key={laptop.id} laptop={laptop} />
-        ))}
+        {loading
+          ? Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)
+          : displayedLaptops.map(laptop => (
+              <LaptopCard key={laptop.id} laptop={laptop} />
+            ))}
       </div>
 
       {/* No Results */}

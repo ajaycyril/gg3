@@ -1,7 +1,10 @@
 // Load environment variables FIRST - before any other imports
 import dotenv from 'dotenv';
 import path from 'path';
-dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+// Avoid loading .env on Vercel builds; rely on project env vars there
+if (!process.env.VERCEL) {
+  dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+}
 
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { Database } from '../types/database';
@@ -20,16 +23,19 @@ class DatabaseClient {
   private lastActivity = Date.now();
 
   private constructor() {
-    const supabaseUrl = process.env.SUPABASE_URL;
-    const supabaseKey = process.env.SUPABASE_ANON_KEY;
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+    const supabaseKey = process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 
-    if (!supabaseUrl || !supabaseKey || !supabaseServiceKey) {
-      throw new Error('Missing required Supabase environment variables');
-    }
+    // Do not throw during build; routes will fail at runtime if truly misconfigured
+    const missing = [] as string[];
+    if (!supabaseUrl) missing.push('SUPABASE_URL');
+    if (!supabaseKey) missing.push('SUPABASE_ANON_KEY');
+    if (!supabaseServiceKey) missing.push('SUPABASE_SERVICE_ROLE_KEY');
+    const warn = missing.length > 0;
 
     // V0 Edge Runtime compatible client configuration
-    this.client = createClient<Database>(supabaseUrl, supabaseKey, {
+    this.client = createClient<Database>(supabaseUrl || 'http://localhost', supabaseKey || 'anon', {
       auth: {
         autoRefreshToken: false, // Disable for serverless
         persistSession: false,   // No session persistence in serverless
@@ -46,7 +52,7 @@ class DatabaseClient {
     });
 
     // Admin client optimized for serverless
-    this.adminClient = createClient<Database>(supabaseUrl, supabaseServiceKey, {
+    this.adminClient = createClient<Database>(supabaseUrl || 'http://localhost', supabaseServiceKey || supabaseKey || 'anon', {
       auth: {
         autoRefreshToken: false,
         persistSession: false
@@ -61,7 +67,11 @@ class DatabaseClient {
       }
     });
 
-    logger.info('V0-optimized database clients initialized');
+    if (warn) {
+      logger.warn('Supabase env vars are not fully configured at init; using placeholders until runtime');
+    } else {
+      logger.info('V0-optimized database clients initialized');
+    }
     
     // Setup serverless cleanup
     this.setupServerlessCleanup();

@@ -1,7 +1,7 @@
 import { Gadget, SearchFilters, PaginatedResponse, ApiResponse, Recommendation, User, UserPreferences, Feedback } from '@/lib/types'
 
-// Use explicit base for server API when provided; fallback to localhost:3002 for development
-const API_BASE = process.env.NEXT_PUBLIC_API_URL?.trim() || 'http://localhost:3002'
+// Prefer relative API routes on Vercel. If an explicit base is provided, use it.
+const API_BASE = process.env.NEXT_PUBLIC_API_URL?.trim() || ''
 
 export const api = {
   async getGadgets(filters: SearchFilters = {}): Promise<PaginatedResponse<Gadget>> {

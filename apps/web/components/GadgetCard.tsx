@@ -123,8 +123,8 @@ export function GadgetCard({ gadget, onSave, isSaved = false, showFullDetails = 
         )}
 
         {/* Actions */}
-        <div className="flex items-center justify-between">
-          <Button variant="primary" size="sm" className="flex-1 mr-2">
+        <div className="flex items-center justify-between gap-2">
+          <Button variant="primary" size="sm" className="flex-1" onClick={(e) => { e.stopPropagation(); /* optional hook up: window.dispatchEvent(new CustomEvent('open-details',{detail:{id:gadget.id}})) */ }}>
             View Details
           </Button>
           
@@ -132,8 +132,8 @@ export function GadgetCard({ gadget, onSave, isSaved = false, showFullDetails = 
             <Button
               variant="outline"
               size="sm"
-              onClick={() => window.open(gadget.link!, '_blank')}
-              className="flex items-center"
+              onClick={(e) => { e.stopPropagation(); window.open(gadget.link!, '_blank') }}
+              className="flex items-center whitespace-nowrap"
             >
               <ExternalLink className="h-3 w-3 mr-1" />
               Buy

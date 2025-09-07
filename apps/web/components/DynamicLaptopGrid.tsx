@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 
@@ -176,8 +177,12 @@ export default function DynamicLaptopGrid({
     const isCompact = viewMode === 'list' || uiConfig?.layout?.density === 'compact'
 
     return (
-      <Card className={`${getDensityClasses()} hover:shadow-lg transition-shadow cursor-pointer`}
-      onClick={() => onLaptopSelect?.(laptop)}>
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.2 }}
+      >
+      <Card className={`${getDensityClasses()} hover:shadow-lg transition-all cursor-pointer`} onClick={() => onLaptopSelect?.(laptop)}>
         
         <div className={`${isCompact ? 'flex items-center space-x-4' : ''}`}>
           {/* Basic Info */}
@@ -221,15 +226,20 @@ export default function DynamicLaptopGrid({
         </div>
 
         {/* Action Buttons */}
-        <div className="flex justify-between items-center mt-3 pt-3 border-t">
-          <Button variant="outline" size="sm">
+        <div className="flex flex-wrap gap-2 items-center justify-between mt-3 pt-3 border-t">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={(e) => { e.stopPropagation(); window.dispatchEvent(new CustomEvent('open-compare', { detail: { from: 'grid' } })) }}
+          >
             Compare
           </Button>
-          <Button size="sm">
+          <Button size="sm" onClick={(e) => { e.stopPropagation(); onLaptopSelect?.(laptop) }}>
             View Details
           </Button>
         </div>
       </Card>
+      </motion.div>
     )
   }
 

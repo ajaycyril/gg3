@@ -75,7 +75,7 @@ class DynamicAIService {
   private isSmallTalk(input: string): boolean {
     const s = input.trim().toLowerCase();
     const phrases = [
-      'hi', 'hello', 'hey', 'how are you', 'what\'s up', 'thanks', 'thank you', 'ok', 'cool', 'bye', 'goodbye'
+      'hi', 'hello', 'hey', 'how are you', 'what\'s up', 'thanks', 'thank you', 'ok', 'okay', 'cool', 'bye', 'goodbye'
     ];
     return phrases.some(p => s === p || s.includes(p));
   }
@@ -112,7 +112,7 @@ class DynamicAIService {
 
       // Handle smalltalk without forcing recommendations
       if (this.isSmallTalk(userInput)) {
-        const friendly = `I'm doing great! 😊 I can help you find the perfect gadget when you're ready. Tell me what you're looking for (e.g., "student laptop under $800", "gaming laptop 16GB RAM").`;
+        const friendly = `Happy to help whenever you are ready. Tell me your budget or pick a purpose to begin.`;
         return {
           response: friendly,
           sessionId: currentSessionId,
@@ -275,28 +275,22 @@ class DynamicAIService {
 
       const aiResponse = JSON.parse(functionCall.arguments);
       
-      // **FORCE CONVERGENCE** - Prevent infinite discovery loops
-      if ((conversationState.turnCount >= 2 || 
-          (aiResponse.phase !== 'recommendation' && Object.keys(conversationState.collectedData).length > 0)) &&
-          !this.isSmallTalk(userInput)) {
-        
-        console.log('🚨 FORCING CONVERGENCE TO RECOMMENDATIONS');
-        
-        // Override AI response to force recommendations
-        aiResponse.phase = 'recommendation';
-        aiResponse.database_filter = {
-          price_min: conversationState.collectedData.budget?.min || 300,
-          price_max: conversationState.collectedData.budget?.max || 3000,
-          brands: conversationState.collectedData.brands || [],
-          specs_filter: { 
-            purpose: conversationState.collectedData.purpose?.[0] || 'general'
-          }
-        };
-        
-        aiResponse.response_text = "Perfect! I have enough information. Here are my top laptop recommendations for you:";
+      // Guided discovery & graceful summary before recommending
+      const userAskedNow = /recommend|show (me )?(options|laptops|results)/i.test(userInput);
+      const hasSignals = !!(conversationState.collectedData.budget || conversationState.collectedData.purpose || conversationState.collectedData.brands);
+
+      if ((conversationState.turnCount >= 2 || (aiResponse.phase !== 'recommendation' && hasSignals)) && !this.isSmallTalk(userInput)) {
+        const sumBudget = conversationState.collectedData.budget ? `$${conversationState.collectedData.budget.min} - $${conversationState.collectedData.budget.max}` : 'any';
+        const sumBrands = (conversationState.collectedData.brands || []).join(', ') || 'any';
+        const sumPurpose = (conversationState.collectedData.purpose || []).join(', ') || 'general';
+        const summaryText = `Just to confirm: budget ${sumBudget}, brands ${sumBrands}, purpose ${sumPurpose}. Does that look right?`;
+
+        aiResponse.phase = 'discovery';
+        aiResponse.response_text = summaryText;
         aiResponse.ui_elements = [
-          { type: 'quickaction', id: 'show_more', label: 'Show More Options', priority: 1 },
-          { type: 'button', id: 'new_search', label: 'Start New Search', priority: 2 }
+          { type: 'button', id: 'confirm_filters', label: '✅ Yes, looks right', action: 'confirm_filters', priority: 1 },
+          { type: 'button', id: 'adjust_budget', label: '💰 Adjust Budget', action: 'adjust_budget', priority: 2 },
+          { type: 'button', id: 'adjust_brands', label: '🏷️ Adjust Brands', action: 'adjust_brands', priority: 3 }
         ];
       }
 
@@ -308,10 +302,28 @@ class DynamicAIService {
       }
       this.conversations.set(currentSessionId, conversationState);
 
-      // Generate recommendations if we have enough data
+      // Generate recommendations if we have enough data and confirmed or explicitly asked
       let recommendations: any[] = [];
-      if (aiResponse.phase === 'recommendation' && aiResponse.database_filter) {
-        const sanitized = await this.sanitizeFilters(aiResponse.database_filter);
+      const confirmed = userAskedNow || conversationState.turnCount >= 3;
+      if (confirmed) {
+        const df = aiResponse.database_filter || {
+          price_min: conversationState.collectedData.budget?.min || 300,
+          price_max: conversationState.collectedData.budget?.max || 3000,
+          brands: conversationState.collectedData.brands || [],
+          specs_filter: { purpose: conversationState.collectedData.purpose?.[0] || 'general' }
+        };
+        const sanitized = await this.sanitizeFilters(df);
+        const candCount = await this.countCandidates(sanitized);
+        if (candCount > 50) {
+          return {
+            response: `I found many options. Would you like to narrow by budget or brand?`,
+            sessionId: currentSessionId,
+            dynamicUI: [
+              { type: 'button', id: 'narrow_budget', label: '💰 Narrow Budget', action: 'adjust_budget', priority: 1 },
+              { type: 'button', id: 'narrow_brand', label: '🏷️ Choose a Brand', action: 'adjust_brands', priority: 2 }
+            ]
+          };
+        }
         recommendations = await this.queryAndRecommend(
           sanitized,
           conversationState.collectedData,
@@ -319,10 +331,24 @@ class DynamicAIService {
         );
       }
 
+      // Compose investor-friendly, guided response with reasons if we have recs
+      const composedText = recommendations && recommendations.length > 0
+        ? this.composeRecommendationResponse(conversationState, recommendations)
+        : aiResponse.response_text;
+
+      // Always provide standard quick actions alongside model UI for smooth next steps
+      const standardCtas: DynamicUIElement[] = [
+        { type: 'quickaction', id: 'show_more', label: 'Show More Options', priority: 1 },
+        { type: 'button', id: 'refine', label: 'Refine Search', action: 'refine', priority: 2 },
+        { type: 'button', id: 'compare_top3', label: 'Compare Top 3', action: 'compare_top3', priority: 3 },
+        { type: 'button', id: 'adjust_budget', label: '💰 Adjust Budget', action: 'adjust_budget', priority: 4 },
+        { type: 'button', id: 'adjust_brands', label: '🏷️ Adjust Brands', action: 'adjust_brands', priority: 5 }
+      ];
+
       const payload = {
-        response: aiResponse.response_text,
+        response: composedText,
         sessionId: currentSessionId,
-        dynamicUI: aiResponse.ui_elements || [],
+        dynamicUI: [...(aiResponse.ui_elements || []), ...standardCtas],
         recommendations,
         databaseQuery: aiResponse.database_filter,
         modelUsed
@@ -441,6 +467,11 @@ class DynamicAIService {
 - Always progress toward database filtering and final recommendations
 - Never generate endless discovery UI - CONVERGE TO RESULTS
 
+**COMMUNICATION STYLE (MANDATORY):**
+- Be concise, confident, and helpful.
+- For recommendations: provide a one-sentence summary and TWO short bullet reasons per item (value/fit/spec trade-off). No rambling.
+- End with a clear next-step question (e.g., “Want me to compare the top 3 or tighten budget?”).
+
 **Current Conversation State:**
 - Phase: ${state.phase}
 - Collected Data: ${JSON.stringify(state.collectedData)}
@@ -469,6 +500,7 @@ ${availableGadgets.slice(0, 5).map(g => `- ${g.name} (${g.brand}) - $${g.price}`
 - Maximum 2 discovery exchanges, then FORCE recommendations
 - Generate minimal UI that leads to quick decisions
 - Always include a "Show Recommendations" button after any selection
+ - Ensure button labels are short and action-oriented
 
 **Example Response Pattern:**
 {
@@ -565,7 +597,7 @@ ALWAYS PROGRESS TO RECOMMENDATIONS - DO NOT LOOP IN DISCOVERY!`;
   }
 
   private buildReasoningText(scored: any): string {
-    const reasons = [...scored.reasonings];
+    const reasons = Array.isArray(scored.reasonings) ? [...scored.reasonings] : [];
     
     // Add value insights
     if (scored.valueScore > 0.8) {
@@ -581,7 +613,38 @@ ALWAYS PROGRESS TO RECOMMENDATIONS - DO NOT LOOP IN DISCOVERY!`;
       reasons.push('📅 Older model - verify it meets current standards');
     }
     
-    return reasons.join('. ');
+    // Keep it tight
+    return reasons.filter(Boolean).slice(0, 3).join('. ');
+  }
+
+  private composeRecommendationResponse(state: ConversationState, recs: any[]): string {
+    const budget = state.collectedData.budget ? `$${state.collectedData.budget.min}–$${state.collectedData.budget.max}` : 'your range';
+    const purpose = (state.collectedData.purpose || ['your needs']).join(', ');
+    const brands = (state.collectedData.brands || []).join(', ');
+
+    const header = `Great — based on ${purpose}${brands ? ` and brands (${brands})` : ''} in budget ${budget}, here are strong picks:`;
+
+    const top = recs.slice(0, 2).map((r, i) => {
+      const price = r?.laptop?.price ? `$${r.laptop.price}` : 'Price TBA';
+      const name = `${r?.laptop?.name || 'Option'} (${r?.laptop?.brand || '—'})`;
+      // Derive two crisp bullets from highlights/reasoning
+      const bullets: string[] = [];
+      if (Array.isArray(r.highlights) && r.highlights.length > 0) bullets.push(r.highlights[0]);
+      if (Array.isArray(r.highlights) && r.highlights.length > 1) bullets.push(r.highlights[1]);
+      if (bullets.length < 2 && r.reasoning) {
+        const parts = String(r.reasoning).split(/\.|\u2022|\n/).map(s => s.trim()).filter(Boolean);
+        for (const p of parts) {
+          if (bullets.length >= 2) break;
+          if (!bullets.find(b => b.toLowerCase() === p.toLowerCase())) bullets.push(p);
+        }
+      }
+      const b1 = bullets[0] ? `- ${bullets[0]}` : '';
+      const b2 = bullets[1] ? `\n  - ${bullets[1]}` : '';
+      return `${i + 1}. ${name} — ${price}\n  ${b1}${b2}`.trim();
+    }).join('\n');
+
+    const footer = `\nWant me to compare the top 3, tighten the budget, or try a different brand?`;
+    return [header, top, footer].filter(Boolean).join('\n\n');
   }
 
   async getAdaptiveUIConfig(userId: string, context: Record<string, any> = {}): Promise<Record<string, any>> {

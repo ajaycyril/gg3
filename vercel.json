@@ -10,7 +10,6 @@
     "SUPABASE_ANON_KEY": "@supabase_anon_key",
     "SUPABASE_SERVICE_ROLE_KEY": "@supabase_service_role_key"
   },
-  "regions": ["iad1", "sfo1", "fra1"],
   "headers": [
     {
       "source": "/api/(.*)",

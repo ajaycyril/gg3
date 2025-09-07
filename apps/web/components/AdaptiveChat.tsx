@@ -1,6 +1,7 @@
 'use client'
 
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '@/lib/auth'
 import { api } from '@/lib/api'
 import { Button } from '@/components/ui/Button'
@@ -40,6 +41,7 @@ export default function AdaptiveChat({ onRecommendationsReceived, onUIConfigUpda
   const [nextQuestion, setNextQuestion] = useState<any | null>(null)
   const [showFilters, setShowFilters] = useState(false)
   const messagesRef = React.useRef<HTMLDivElement | null>(null)
+  const inputRef = useRef<HTMLTextAreaElement | null>(null)
 
   // Initialize with a simple welcome message
   useEffect(() => {
@@ -149,6 +151,21 @@ export default function AdaptiveChat({ onRecommendationsReceived, onUIConfigUpda
     }
   }, [messages, isLoading])
 
+  // Input handlers: auto-resize and keyboard shortcuts
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const ta = e.target
+    ta.style.height = 'auto'
+    ta.style.height = Math.min(ta.scrollHeight, 160) + 'px'
+    setInput(ta.value)
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      sendMessage(input)
+    }
+  }
+
   const handleDynamicUIAction = (element: DynamicUIElement, value?: any) => {
     let message = ''
     
@@ -184,27 +201,32 @@ export default function AdaptiveChat({ onRecommendationsReceived, onUIConfigUpda
     if (!elements || elements.length === 0) return null
 
     return (
-      <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.2 }}
+        className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200"
+      >
         <p className="text-sm text-blue-800 mb-3">Quick actions:</p>
-        <div className="space-y-3">
+        <div className="flex flex-wrap gap-2">
           {elements
             .sort((a, b) => a.priority - b.priority)
             .map((element, index) => (
-              <DynamicUIRenderer 
-                key={`${element.id}-${index}`} 
-                element={element} 
-                onAction={handleDynamicUIAction} 
+              <DynamicUIRenderer
+                key={`${element.id}-${index}`}
+                element={element}
+                onAction={handleDynamicUIAction}
               />
             ))}
         </div>
-      </div>
+      </motion.div>
     )
   }
 
   return (
     <div className="flex flex-col h-full max-w-6xl mx-auto">
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b bg-white sticky top-0 z-10">
+      <div className="flex items-center justify-between p-4 border-b bg-white/80 backdrop-blur sticky top-0 z-10">
         <div>
           <h2 className="text-lg font-semibold">AI Laptop Advisor</h2>
           <p className="text-sm text-gray-600">Never buy a sub‑optimal laptop again</p>
@@ -263,98 +285,75 @@ export default function AdaptiveChat({ onRecommendationsReceived, onUIConfigUpda
             )}
 
             {/* Messages area */}
-            <div ref={messagesRef} className="flex-1 overflow-y-auto p-4 space-y-4 bg-white">
-              {messages.map((message, index) => (
-                <div key={index} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-[85%] ${message.role === 'user' ? 'order-2' : 'order-1'}`}>
-                    <Card className={`p-4 ${
-                      message.role === 'user' 
-                        ? 'bg-blue-50 border-blue-200 ml-4' 
-                        : 'bg-white border-gray-200 mr-4'
-                    }`}>
-                <div className="prose prose-sm max-w-none">
-                  <p className="whitespace-pre-wrap">{message.content}</p>
-                </div>
-                
-                {/* Render dynamic UI elements */}
-                {message.role === 'assistant' && message.dynamicUI && (
-                  renderDynamicUI(message.dynamicUI)
-                )}
-
-                {/* Show recommendations with explanations */}
-                {message.recommendations && message.recommendations.length > 0 && (
-                  <div className="mt-4 p-4 bg-green-50 rounded-lg border border-green-200">
-                    <p className="text-sm font-semibold text-green-800 mb-2">
-                      🎯 My Recommendations:
-                    </p>
-                    {message.recommendations.map((rec, idx) => (
-                      <div key={idx} className="mb-3 last:mb-0">
-                        <div className="flex items-center justify-between">
-                          <span className="font-medium text-sm">
-                            #{rec.rank} {rec.laptop?.name} ({rec.laptop?.brand})
-                          </span>
-                          <span className="text-green-600 font-bold">
-                            ${rec.laptop?.price}
-                          </span>
+            <div ref={messagesRef} role="log" aria-live="polite" className="flex-1 overflow-y-auto p-4 space-y-4 bg-white pb-24">
+              <AnimatePresence initial={false}>
+                {messages.map((message, index) => (
+                  <motion.div
+                    key={index}
+                    initial={{ opacity: 0, y: 6, scale: 0.98 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -6, scale: 0.98 }}
+                    transition={{ duration: 0.18, ease: 'easeOut' }}
+                    className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                  >
+                    <div className={`max-w-[85%] ${message.role === 'user' ? 'order-2' : 'order-1'}`}>
+                      <Card className={`p-4 shadow-sm ${message.role === 'user' ? 'bg-blue-50 border-blue-200 ml-4' : 'bg-white border-gray-200 mr-4'}`}>
+                        <div className="flex items-start gap-3">
+                          <div className={`h-7 w-7 rounded-full shrink-0 flex items-center justify-center text-xs font-medium ${message.role === 'user' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}`} aria-hidden>
+                            {message.role === 'user' ? 'You' : 'AI'}
+                          </div>
+                          <div className="prose prose-sm max-w-none">
+                            <p className="whitespace-pre-wrap leading-relaxed">{message.content}</p>
+                            {message.role === 'assistant' && message.dynamicUI && renderDynamicUI(message.dynamicUI)}
+                            {message.recommendations && message.recommendations.length > 0 && (
+                              <div className="mt-4 p-4 bg-green-50 rounded-lg border border-green-200">
+                                <p className="text-sm font-semibold text-green-800 mb-2">🎯 My Recommendations:</p>
+                                <div className="space-y-3">
+                                  {message.recommendations.map((rec, idx) => (
+                                    <div key={idx}>
+                                      <div className="flex items-center justify-between">
+                                        <span className="font-medium text-sm">#{rec.rank} {rec.laptop?.name} ({rec.laptop?.brand})</span>
+                                        <span className="text-green-700 font-semibold">${rec.laptop?.price}</span>
+                                      </div>
+                                      <p className="text-xs text-gray-600 mt-1">{rec.reasoning}</p>
+                                      <div className="mt-1 text-[11px] text-gray-500">
+                                        {typeof rec.valueScore === 'number' && <span className="mr-2">Value: {(rec.valueScore*100|0)/100}</span>}
+                                        {typeof rec.similarityScore === 'number' && <span className="mr-2">Match: {(rec.similarityScore*100|0)/100}</span>}
+                                        {typeof rec.recencyScore === 'number' && <span className="mr-2">Recency: {(rec.recencyScore*100|0)/100}</span>}
+                                      </div>
+                                      {rec.highlights?.length > 0 && (
+                                        <div className="flex gap-1 mt-2 flex-wrap">
+                                          {rec.highlights.map((highlight: string, hidx: number) => (
+                                            <span key={hidx} className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">{highlight}</span>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
                         </div>
-                        <p className="text-xs text-gray-600 mt-1">{rec.reasoning}</p>
-                        <div className="mt-1 text-[11px] text-gray-500">
-                          {typeof rec.valueScore === 'number' && <span className="mr-2">Value: {(rec.valueScore*100|0)/100}</span>}
-                          {typeof rec.similarityScore === 'number' && <span className="mr-2">Match: {(rec.similarityScore*100|0)/100}</span>}
-                          {typeof rec.recencyScore === 'number' && <span className="mr-2">Recency: {(rec.recencyScore*100|0)/100}</span>}
-                        </div>
-                        <div className="flex gap-1 mt-2">
-                          {rec.highlights?.map((highlight: string, hidx: number) => (
-                            <span key={hidx} className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">
-                              {highlight}
-                            </span>
-                          ))}
-                        </div>
+                      </Card>
+                    </div>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+              {isLoading && (
+                <div className="flex justify-start">
+                  <Card className="max-w-[80%] p-4 bg-white border-gray-200 mr-4">
+                    <div className="flex items-center space-x-2">
+                      <div className="animate-pulse flex space-x-1">
+                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
                       </div>
-                    ))}
-                  </div>
-                )}
-              </Card>
-            </div>
-          </div>
-        ))}
-        
-        {isLoading && (
-          <div className="flex justify-start">
-            <Card className="max-w-[80%] p-4 bg-white border-gray-200 mr-4">
-              <div className="flex items-center space-x-2">
-                <div className="animate-pulse flex space-x-1">
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                      <span className="text-sm text-gray-500">AI is thinking...</span>
+                    </div>
+                  </Card>
                 </div>
-                <span className="text-sm text-gray-500">AI is thinking...</span>
-              </div>
-            </Card>
-          </div>
-        )}
-      </div>
-
-            {/* Input Area */}
-            <div className="p-4 border-t bg-white">
-              <div className="flex space-x-2">
-                <input
-                  type="text"
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && sendMessage(input)}
-                  placeholder="Type your message or use the buttons above..."
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  disabled={isLoading}
-                />
-                <Button
-                  onClick={() => sendMessage(input)}
-                  disabled={isLoading || !input.trim()}
-                  className="px-6"
-                >
-                  {isLoading ? '⏳' : 'Send'}
-                </Button>
-              </div>
+              )}
             </div>
           </div>
           {/* Facets sidebar (desktop) */}
@@ -391,6 +390,28 @@ export default function AdaptiveChat({ onRecommendationsReceived, onUIConfigUpda
               </div>
             )}
           </aside>
+        </div>
+      </div>
+      {/* Docked Input Area */}
+      <div className="border-t bg-white p-3 md:p-4 sticky bottom-0 z-10 [padding-bottom:env(safe-area-inset-bottom)]">
+        <div className="flex items-end gap-2 max-w-3xl mx-auto">
+          <div className="flex-1">
+            <label htmlFor="chat-input" className="sr-only">Message</label>
+            <textarea
+              id="chat-input"
+              ref={inputRef}
+              rows={1}
+              value={input}
+              onChange={handleInputChange}
+              onKeyDown={handleKeyDown}
+              placeholder="Type a message… Press Enter to send, Shift+Enter for newline"
+              className="w-full resize-none px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 leading-relaxed max-h-40"
+              disabled={isLoading}
+            />
+          </div>
+          <Button onClick={() => sendMessage(input)} disabled={isLoading || !input.trim()} className="px-5">
+            {isLoading ? '⏳' : 'Send'}
+          </Button>
         </div>
       </div>
     </div>

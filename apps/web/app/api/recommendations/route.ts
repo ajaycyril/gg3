@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import mlRecommender from '../../../api/src/services/mlRecommender'
+import mlRecommender from '@api/services/mlRecommender'
 
 export const runtime = 'nodejs'
 
@@ -55,4 +55,3 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ success: false, error: e?.message || 'list recommendations failed' }, { status: 500 })
   }
 }
-

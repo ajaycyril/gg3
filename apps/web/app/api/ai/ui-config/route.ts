@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import dynamicAI from '../../../../api/src/services/dynamicAI'
+import dynamicAI from '@api/services/dynamicAI'
 
 export const runtime = 'nodejs'
 
@@ -14,4 +14,3 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ success: false, error: e?.message || 'config error' }, { status: 500 })
   }
 }
-

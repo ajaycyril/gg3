@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import dynamicAI from '../../../../api/src/services/dynamicAI'
+import dynamicAI from '@api/services/dynamicAI'
 
 export const runtime = 'nodejs'
 
@@ -13,4 +13,3 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, error: e?.message || 'recommendations error' }, { status: 500 })
   }
 }
-

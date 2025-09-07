@@ -1,21 +1,36 @@
+interface DynamicUIElement {
+    type: 'button' | 'slider' | 'multiselect' | 'text' | 'quickaction';
+    id: string;
+    label: string;
+    options?: string[] | {
+        min: number;
+        max: number;
+        step: number;
+    };
+    action?: string;
+    priority: number;
+}
 declare class DynamicAIService {
     private openai;
     private readonly MODEL_GPT4;
-    private readonly MODEL_GPT35;
+    private conversations;
     constructor();
     processConversation(userId: string, userInput: string, sessionId?: string, context?: Record<string, any>): Promise<{
         response: string;
         sessionId: string;
-        suggestedActions: any[];
-        uiConfiguration: Record<string, any>;
+        dynamicUI: DynamicUIElement[];
         recommendations?: any[];
+        databaseQuery?: any;
     }>;
+    private extractDataFromInput;
+    private buildDynamicSystemPrompt;
+    private queryAndRecommend;
+    private extractPurposeFromFilters;
+    private buildQueryText;
+    private buildReasoningText;
     getAdaptiveUIConfig(userId: string, context?: Record<string, any>): Promise<Record<string, any>>;
     generateAdaptiveRecommendationsForUser(userId: string, preferences?: Record<string, any>, context?: Record<string, any>): Promise<any[]>;
-    private buildSystemPrompt;
-    private buildRecommendationPrompt;
-    private generateSuggestedActions;
-    private getDefaultUIConfig;
+    private generateFallbackUI;
 }
 declare const _default: DynamicAIService;
 export default _default;

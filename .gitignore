@@ -16,6 +16,8 @@ apps/web/build/
 .env.local
 .env.production
 .env.test
+apps/*/.env
+apps/*/.env.local
 
 # IDE files
 .vscode/

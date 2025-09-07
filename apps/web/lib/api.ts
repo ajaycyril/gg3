@@ -277,7 +277,7 @@ export const api = {
   },
 
   async healthCheck() {
-    const response = await fetch(`${API_BASE}/health`)
+    const response = await fetch(`${API_BASE}/api/health`)
 
     if (!response.ok) {
       throw new Error(`Failed to perform health check: ${response.statusText}`)

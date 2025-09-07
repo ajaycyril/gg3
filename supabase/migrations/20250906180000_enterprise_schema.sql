@@ -8,7 +8,6 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "vector";
 CREATE EXTENSION IF NOT EXISTS "pg_trgm";
 CREATE EXTENSION IF NOT EXISTS "btree_gin";
-
 -- =============================================================================
 -- 1. MULTI-TENANT FOUNDATION
 -- =============================================================================
@@ -25,7 +24,6 @@ CREATE TABLE IF NOT EXISTS public.tenants (
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     deleted_at TIMESTAMPTZ
 );
-
 CREATE TABLE IF NOT EXISTS public.tenant_api_keys (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
@@ -40,7 +38,6 @@ CREATE TABLE IF NOT EXISTS public.tenant_api_keys (
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     deleted_at TIMESTAMPTZ
 );
-
 -- =============================================================================
 -- 2. CATEGORY-AGNOSTIC PRODUCT MODEL
 -- =============================================================================
@@ -61,7 +58,6 @@ CREATE TABLE IF NOT EXISTS public.categories (
     deleted_at TIMESTAMPTZ,
     UNIQUE(tenant_id, slug)
 );
-
 CREATE TABLE IF NOT EXISTS public.attributes (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
@@ -81,7 +77,6 @@ CREATE TABLE IF NOT EXISTS public.attributes (
     deleted_at TIMESTAMPTZ,
     UNIQUE(tenant_id, category_id, slug)
 );
-
 CREATE TABLE IF NOT EXISTS public.products (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
@@ -112,7 +107,6 @@ CREATE TABLE IF NOT EXISTS public.products (
     UNIQUE(tenant_id, gtin) DEFERRABLE,
     UNIQUE(tenant_id, brand, mpn) DEFERRABLE
 );
-
 CREATE TABLE IF NOT EXISTS public.product_attributes (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
@@ -136,7 +130,6 @@ CREATE TABLE IF NOT EXISTS public.product_attributes (
     
     UNIQUE(tenant_id, product_id, attribute_id)
 );
-
 -- =============================================================================
 -- 3. VARIANTS, OFFERS, PRICE & INVENTORY
 -- =============================================================================
@@ -160,7 +153,6 @@ CREATE TABLE IF NOT EXISTS public.product_variants (
     
     UNIQUE(tenant_id, product_id, name)
 );
-
 CREATE TABLE IF NOT EXISTS public.sellers (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
@@ -177,7 +169,6 @@ CREATE TABLE IF NOT EXISTS public.sellers (
     
     UNIQUE(tenant_id, domain)
 );
-
 CREATE TABLE IF NOT EXISTS public.offers (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
@@ -213,7 +204,6 @@ CREATE TABLE IF NOT EXISTS public.offers (
     
     UNIQUE(tenant_id, product_id, variant_id, seller_id, url)
 );
-
 -- Price history for trends (append-only)
 CREATE TABLE IF NOT EXISTS public.offer_history (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -226,7 +216,6 @@ CREATE TABLE IF NOT EXISTS public.offer_history (
     
     recorded_at TIMESTAMPTZ DEFAULT NOW()
 ) PARTITION BY RANGE (recorded_at);
-
 -- Currency exchange rates
 CREATE TABLE IF NOT EXISTS public.fx_rates (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -237,7 +226,6 @@ CREATE TABLE IF NOT EXISTS public.fx_rates (
     
     UNIQUE(from_currency, to_currency, recorded_at)
 );
-
 -- =============================================================================
 -- 4. UNSTRUCTURED CONTENT & REVIEWS
 -- =============================================================================
@@ -269,7 +257,6 @@ CREATE TABLE IF NOT EXISTS public.unstructured_docs (
     
     UNIQUE(tenant_id, content_hash)
 );
-
 CREATE TABLE IF NOT EXISTS public.doc_chunks (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
@@ -285,7 +272,6 @@ CREATE TABLE IF NOT EXISTS public.doc_chunks (
     
     UNIQUE(tenant_id, doc_id, chunk_index)
 );
-
 CREATE TABLE IF NOT EXISTS public.reviews (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
@@ -304,7 +290,6 @@ CREATE TABLE IF NOT EXISTS public.reviews (
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     deleted_at TIMESTAMPTZ
 );
-
 -- =============================================================================
 -- 5. VECTOR SEARCH & HYBRID RETRIEVAL
 -- =============================================================================
@@ -329,7 +314,6 @@ CREATE TABLE IF NOT EXISTS public.embeddings (
     
     UNIQUE(tenant_id, entity_type, entity_id, model_name, embedding_version)
 );
-
 -- Full-text search support
 CREATE TABLE IF NOT EXISTS public.search_documents (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -347,7 +331,6 @@ CREATE TABLE IF NOT EXISTS public.search_documents (
     
     UNIQUE(tenant_id, entity_type, entity_id)
 );
-
 -- =============================================================================
 -- 6. BENCHMARKS & PERFORMANCE METADATA
 -- =============================================================================
@@ -365,7 +348,6 @@ CREATE TABLE IF NOT EXISTS public.benchmark_types (
     
     UNIQUE(tenant_id, name)
 );
-
 CREATE TABLE IF NOT EXISTS public.benchmarks (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
@@ -390,7 +372,6 @@ CREATE TABLE IF NOT EXISTS public.benchmarks (
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
-
 -- =============================================================================
 -- 7. SCRAPING & PROVENANCE
 -- =============================================================================
@@ -419,7 +400,6 @@ CREATE TABLE IF NOT EXISTS public.crawl_jobs (
     
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
-
 CREATE TABLE IF NOT EXISTS public.crawl_items (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
@@ -449,7 +429,6 @@ CREATE TABLE IF NOT EXISTS public.crawl_items (
     
     UNIQUE(tenant_id, job_id, url)
 ) PARTITION BY RANGE (created_at);
-
 -- =============================================================================
 -- 8. RECOMMENDATIONS, EXPERIMENTS & EXPLANATIONS
 -- =============================================================================
@@ -472,7 +451,6 @@ CREATE TABLE IF NOT EXISTS public.recommendation_sets (
     
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
-
 CREATE TABLE IF NOT EXISTS public.recommendations (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
@@ -491,7 +469,6 @@ CREATE TABLE IF NOT EXISTS public.recommendations (
     
     UNIQUE(tenant_id, set_id, product_id)
 );
-
 -- A/B Testing infrastructure
 CREATE TABLE IF NOT EXISTS public.experiments (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -511,7 +488,6 @@ CREATE TABLE IF NOT EXISTS public.experiments (
     
     UNIQUE(tenant_id, name)
 );
-
 CREATE TABLE IF NOT EXISTS public.experiment_arms (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
@@ -523,7 +499,6 @@ CREATE TABLE IF NOT EXISTS public.experiment_arms (
     
     UNIQUE(tenant_id, experiment_id, name)
 );
-
 CREATE TABLE IF NOT EXISTS public.experiment_assignments (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
@@ -535,7 +510,6 @@ CREATE TABLE IF NOT EXISTS public.experiment_assignments (
     
     UNIQUE(tenant_id, experiment_id, user_id)
 );
-
 -- =============================================================================
 -- 9. FEATURE STORE & MODEL REGISTRY
 -- =============================================================================
@@ -553,7 +527,6 @@ CREATE TABLE IF NOT EXISTS public.features_latest (
     
     UNIQUE(tenant_id, entity_type, entity_id, feature_name)
 );
-
 CREATE TABLE IF NOT EXISTS public.features_history (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
@@ -565,7 +538,6 @@ CREATE TABLE IF NOT EXISTS public.features_history (
     
     computed_at TIMESTAMPTZ DEFAULT NOW()
 ) PARTITION BY RANGE (computed_at);
-
 CREATE TABLE IF NOT EXISTS public.model_registry (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
@@ -591,7 +563,6 @@ CREATE TABLE IF NOT EXISTS public.model_registry (
     
     UNIQUE(tenant_id, name, version)
 );
-
 -- =============================================================================
 -- 10. EVENTS, ANALYTICS & COST CONTROL
 -- =============================================================================
@@ -617,7 +588,6 @@ CREATE TABLE IF NOT EXISTS public.events (
     ip_address INET,
     referrer TEXT
 ) PARTITION BY RANGE (occurred_at);
-
 -- =============================================================================
 -- 11. SECURITY, PRIVACY & GOVERNANCE
 -- =============================================================================
@@ -639,7 +609,6 @@ CREATE TABLE IF NOT EXISTS public.user_pii (
     
     UNIQUE(tenant_id, user_id)
 );
-
 CREATE TABLE IF NOT EXISTS public.audit_logs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
@@ -658,7 +627,6 @@ CREATE TABLE IF NOT EXISTS public.audit_logs (
     
     occurred_at TIMESTAMPTZ DEFAULT NOW()
 ) PARTITION BY RANGE (occurred_at);
-
 CREATE TABLE IF NOT EXISTS public.data_lineage (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
@@ -677,7 +645,6 @@ CREATE TABLE IF NOT EXISTS public.data_lineage (
     
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
-
 -- =============================================================================
 -- 12. INTERNATIONALIZATION & LOCALIZATION
 -- =============================================================================
@@ -698,7 +665,6 @@ CREATE TABLE IF NOT EXISTS public.localized_content (
     
     UNIQUE(tenant_id, entity_type, entity_id, locale, field_name)
 );
-
 -- =============================================================================
 -- 13. INTEGRATION & INTEROPERABILITY
 -- =============================================================================
@@ -720,7 +686,6 @@ CREATE TABLE IF NOT EXISTS public.external_mappings (
     
     UNIQUE(tenant_id, external_system, external_id, entity_type)
 );
-
 CREATE TABLE IF NOT EXISTS public.webhooks (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
@@ -738,7 +703,6 @@ CREATE TABLE IF NOT EXISTS public.webhooks (
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
-
 CREATE TABLE IF NOT EXISTS public.webhook_deliveries (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
@@ -757,7 +721,6 @@ CREATE TABLE IF NOT EXISTS public.webhook_deliveries (
     created_at TIMESTAMPTZ DEFAULT NOW(),
     delivered_at TIMESTAMPTZ
 );
-
 -- =============================================================================
 -- INDEXES FOR PERFORMANCE
 -- =============================================================================
@@ -765,32 +728,26 @@ CREATE TABLE IF NOT EXISTS public.webhook_deliveries (
 -- Multi-tenant indexes
 CREATE INDEX IF NOT EXISTS idx_tenants_slug ON public.tenants(slug) WHERE deleted_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_tenant_api_keys_tenant ON public.tenant_api_keys(tenant_id, key_prefix) WHERE deleted_at IS NULL;
-
 -- Product catalog indexes
 CREATE INDEX IF NOT EXISTS idx_categories_tenant_parent ON public.categories(tenant_id, parent_id) WHERE deleted_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_categories_hierarchy ON public.categories USING GIN(hierarchy_path) WHERE deleted_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_products_tenant_category ON public.products(tenant_id, category_id) WHERE deleted_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_products_brand_model ON public.products(tenant_id, brand, model) WHERE deleted_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_product_attributes_filtering ON public.product_attributes(tenant_id, attribute_id, value_number, value_text, value_boolean);
-
 -- Offers and pricing
 CREATE INDEX IF NOT EXISTS idx_offers_product_seller ON public.offers(tenant_id, product_id, seller_id) WHERE deleted_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_offers_price ON public.offers(tenant_id, price, currency) WHERE deleted_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_offer_history_time ON public.offer_history(tenant_id, offer_id, recorded_at);
-
 -- Search and embeddings
 CREATE INDEX IF NOT EXISTS idx_embeddings_entity ON public.embeddings(tenant_id, entity_type, entity_id, model_name);
 CREATE INDEX IF NOT EXISTS idx_search_documents_fts ON public.search_documents USING GIN(search_vector);
 CREATE INDEX IF NOT EXISTS idx_unstructured_docs_hash ON public.unstructured_docs(tenant_id, content_hash);
-
 -- Analytics and events
 CREATE INDEX IF NOT EXISTS idx_events_tenant_type ON public.events(tenant_id, event_type, occurred_at);
 CREATE INDEX IF NOT EXISTS idx_events_user_session ON public.events(tenant_id, user_id, session_id, occurred_at);
-
 -- Crawling and data pipeline
 CREATE INDEX IF NOT EXISTS idx_crawl_items_job_status ON public.crawl_items(tenant_id, job_id, status);
 CREATE INDEX IF NOT EXISTS idx_crawl_items_url_hash ON public.crawl_items(tenant_id, url, content_hash);
-
 -- =============================================================================
 -- MATERIALIZED VIEWS FOR PERFORMANCE
 -- =============================================================================
@@ -810,10 +767,8 @@ SELECT DISTINCT ON (tenant_id, product_id, COALESCE(variant_id, gen_random_uuid(
 FROM public.offers 
 WHERE deleted_at IS NULL
 ORDER BY tenant_id, product_id, COALESCE(variant_id, gen_random_uuid()), updated_at DESC;
-
 CREATE UNIQUE INDEX IF NOT EXISTS idx_mv_latest_offers_unique 
 ON public.mv_latest_offers(tenant_id, product_id, COALESCE(variant_id, '00000000-0000-0000-0000-000000000000'::uuid));
-
 -- Top attributes per category for faceting
 CREATE MATERIALIZED VIEW IF NOT EXISTS public.mv_category_attributes AS
 SELECT 
@@ -831,7 +786,6 @@ JOIN public.products p ON pa.product_id = p.id AND pa.tenant_id = p.tenant_id
 JOIN public.attributes a ON pa.attribute_id = a.id AND pa.tenant_id = a.tenant_id
 WHERE p.deleted_at IS NULL AND p.status = 'active'
 GROUP BY pa.tenant_id, p.category_id, pa.attribute_id, a.name, a.data_type;
-
 -- =============================================================================
 -- ROW LEVEL SECURITY (RLS) POLICIES
 -- =============================================================================
@@ -860,17 +814,13 @@ ALTER TABLE public.recommendation_sets ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.experiments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
-
 -- Tenant isolation policies (set app.tenant_id per request)
 CREATE POLICY "tenant_isolation" ON public.categories
     FOR ALL USING (tenant_id = COALESCE(current_setting('app.tenant_id', true)::uuid, '00000000-0000-0000-0000-000000000000'::uuid));
-
 CREATE POLICY "tenant_isolation" ON public.products 
     FOR ALL USING (tenant_id = COALESCE(current_setting('app.tenant_id', true)::uuid, '00000000-0000-0000-0000-000000000000'::uuid));
-
 CREATE POLICY "tenant_isolation" ON public.offers
     FOR ALL USING (tenant_id = COALESCE(current_setting('app.tenant_id', true)::uuid, '00000000-0000-0000-0000-000000000000'::uuid));
-
 -- Apply similar policies to all other tenant-scoped tables...
 -- (This is a template - you'd need to create similar policies for all tables)
 
@@ -885,7 +835,6 @@ BEGIN
     PERFORM set_config('app.tenant_id', tenant_uuid::text, true);
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
-
 -- Function to get current tenant
 CREATE OR REPLACE FUNCTION public.get_current_tenant()
 RETURNS UUID AS $$

@@ -118,15 +118,11 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
 }));
 
 // GET /api/gadgets/:id - Get specific gadget with related data
-router.get('/:id', asyncHandler(async (req: Request, res: Response) => {
+// Use a constrained param route so specific paths like /brands don't get captured
+router.get('/:id([0-9a-fA-F-]{36})', asyncHandler(async (req: Request, res: Response) => {
   const { id } = req.params;
 
-  if (!id.match(/^[0-9a-fA-F-]{36}$/)) {
-    return res.status(400).json({
-      error: 'Invalid gadget ID format',
-      code: 'INVALID_ID',
-    });
-  }
+  // ID format is already constrained by route regex above
 
   const { data, error } = await supabase
     .from('gadgets')
@@ -218,6 +214,26 @@ router.get('/meta/brands', asyncHandler(async (req: Request, res: Response) => {
     data: brands 
   };
   res.json(response);
+}));
+
+// Alias for clients expecting /api/gadgets/brands
+router.get('/brands', asyncHandler(async (req: Request, res: Response) => {
+  const { data, error } = await supabase
+    .from('gadgets')
+    .select('brand')
+    .not('brand', 'is', null)
+    .order('brand');
+
+  if (error) {
+    logger.error('Error fetching brands (alias):', error);
+    return res.status(500).json({
+      error: 'Failed to fetch brands',
+      code: 'DATABASE_ERROR',
+    });
+  }
+
+  const brands = [...new Set(data?.map(item => item.brand).filter(Boolean))] as string[];
+  res.json({ success: true, data: brands });
 }));
 
 export default router;

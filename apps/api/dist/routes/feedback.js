@@ -8,6 +8,7 @@ const supabaseClient_1 = require("../db/supabaseClient");
 const errorHandler_1 = require("../middleware/errorHandler");
 const logger_1 = __importDefault(require("../utils/logger"));
 const joi_1 = __importDefault(require("joi"));
+const mlRecommender_1 = __importDefault(require("../services/mlRecommender"));
 const router = (0, express_1.Router)();
 // Validation schemas
 const feedbackSchema = joi_1.default.object({
@@ -171,4 +172,106 @@ router.delete('/:id', (0, errorHandler_1.asyncHandler)(async (req, res) => {
     logger_1.default.info('Feedback deleted:', { id, userId });
     res.status(204).send();
 }));
+/**
+ * Record user feedback for ML learning
+ */
+router.post('/feedback', async (req, res) => {
+    try {
+        const { sessionId, userId = 'default-user', laptopId, userAction, // 'clicked' | 'purchased' | 'dismissed' | 'compared'
+        feedback, // 'positive' | 'negative'
+        query, recommendedLaptop } = req.body;
+        console.log('📊 Recording user feedback:', { userId, userAction, feedback });
+        // Create feedback data
+        const feedbackData = {
+            sessionId,
+            userId,
+            query,
+            recommendedLaptop,
+            userAction,
+            feedback,
+            timestamp: new Date()
+        };
+        // Process feedback through ML system
+        await mlRecommender_1.default.processFeedback(feedbackData);
+        // Store in database for persistence (optional)
+        // await supabase.from('user_feedback').insert(feedbackData);
+        res.json({
+            success: true,
+            message: 'Feedback recorded successfully'
+        });
+    }
+    catch (error) {
+        console.error('❌ Feedback recording failed:', error);
+        logger_1.default.error('Feedback processing error:', error);
+        res.status(500).json({
+            error: 'Failed to record feedback',
+            message: error.message
+        });
+    }
+});
+/**
+ * Get ML-powered recommendations directly
+ */
+router.post('/ml-recommendations', async (req, res) => {
+    try {
+        const { userId = 'default-user', sessionId, purpose = ['general'], budget = { min: 300, max: 3000 }, brands = [], specs = {}, priorities = [], text = '' } = req.body;
+        console.log('🤖 Direct ML recommendation request for:', purpose);
+        const userQuery = {
+            purpose,
+            budget,
+            brands,
+            specs,
+            priorities,
+            text
+        };
+        const recommendations = await mlRecommender_1.default.getRecommendations(userQuery, userId, sessionId);
+        res.json({
+            success: true,
+            recommendations: recommendations.map(scored => ({
+                laptop: scored.laptop,
+                score: scored.score,
+                reasoning: scored.reasonings.join('. '),
+                highlights: scored.highlights,
+                warnings: scored.warnings,
+                metrics: {
+                    valueScore: scored.valueScore,
+                    similarityScore: scored.similarityScore,
+                    recencyScore: scored.recencyScore
+                }
+            }))
+        });
+    }
+    catch (error) {
+        console.error('❌ ML recommendations failed:', error);
+        logger_1.default.error('ML recommendation error:', error);
+        res.status(500).json({
+            error: 'Failed to generate recommendations',
+            message: error.message
+        });
+    }
+});
+/**
+ * Analytics endpoint for ML performance
+ */
+router.get('/ml-analytics', async (req, res) => {
+    try {
+        // This would provide insights into ML performance
+        res.json({
+            success: true,
+            analytics: {
+                totalRecommendations: 0,
+                userSatisfactionRate: 0,
+                averageValueScore: 0,
+                topPerformingBrands: [],
+                commonPurposes: ['gaming', 'work', 'student']
+            }
+        });
+    }
+    catch (error) {
+        console.error('❌ ML analytics failed:', error);
+        res.status(500).json({
+            error: 'Failed to get analytics'
+        });
+    }
+});
 exports.default = router;

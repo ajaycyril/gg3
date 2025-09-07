@@ -15,6 +15,17 @@ INSERT INTO gadgets (id, name, brand, price, image_url, specs) VALUES
  '{"display": "7 inch OLED", "storage": "64GB", "battery_life": "9 hours", "docked_resolution": "1080p"}'
 );
 
+-- Add more laptops to improve ML recommendations
+INSERT INTO gadgets (id, name, brand, price, image_url, specs) VALUES 
+(gen_random_uuid(), 'ASUS TUF Gaming F15 Laptop', 'ASUS', 999.00, 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=500',
+ '{"processor": "Intel i7-12700H", "ram": "16GB", "storage": "512GB SSD", "graphics": "NVIDIA RTX 3050"}'),
+(gen_random_uuid(), 'Acer Nitro 5 Gaming Laptop', 'Acer', 899.00, 'https://images.unsplash.com/photo-1518779578993-ec3579fee39f?w=500',
+ '{"processor": "Intel i5-12500H", "ram": "16GB", "storage": "512GB SSD", "graphics": "NVIDIA RTX 3050 Ti"}'),
+(gen_random_uuid(), 'Lenovo IdeaPad 5 Laptop', 'Lenovo', 749.00, 'https://images.unsplash.com/photo-1527430253228-e93688616381?w=500',
+ '{"processor": "AMD Ryzen 7 5700U", "ram": "16GB", "storage": "512GB SSD", "graphics": "Integrated Radeon"}'),
+(gen_random_uuid(), 'Dell XPS 13 Laptop', 'Dell', 1299.00, 'https://images.unsplash.com/photo-1517331156700-3c241d2b4d83?w=500',
+ '{"processor": "Intel i7-1360P", "ram": "16GB", "storage": "512GB SSD", "graphics": "Intel Iris Xe"}');
+
 -- Insert sample reviews for the first gadget (iPhone 15 Pro)
 WITH iphone_id AS (SELECT id FROM gadgets WHERE name = 'iPhone 15 Pro' LIMIT 1)
 INSERT INTO reviews (gadget_id, content, author, source, rating) 

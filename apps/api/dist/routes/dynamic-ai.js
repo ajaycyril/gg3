@@ -6,7 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
 const dynamicAI_1 = __importDefault(require("../services/dynamicAI"));
 const router = express_1.default.Router();
-// Chat endpoint - simple and direct
+// Chat endpoint - now fully dynamic
 router.post('/chat', async (req, res) => {
     try {
         const { message, sessionId, context } = req.body;
@@ -20,11 +20,20 @@ router.post('/chat', async (req, res) => {
         const result = await dynamicAI_1.default.processConversation(userId, message, sessionId, context);
         res.json({
             success: true,
-            data: result
+            data: {
+                response: result.response,
+                sessionId: result.sessionId,
+                dynamicUI: result.dynamicUI,
+                recommendations: result.recommendations || [],
+                databaseQuery: result.databaseQuery,
+                // Legacy compatibility
+                suggestedActions: result.dynamicUI,
+                uiConfiguration: { dynamic: true }
+            }
         });
     }
     catch (error) {
-        console.error('Chat processing failed:', error);
+        console.error('Dynamic chat processing failed:', error);
         res.status(500).json({
             success: false,
             error: 'Failed to process conversation',

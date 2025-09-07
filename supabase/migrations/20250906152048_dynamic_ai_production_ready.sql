@@ -4,7 +4,6 @@
 -- Enable required extensions
 CREATE EXTENSION IF NOT EXISTS "vector";
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-
 -- Enhanced user profiles for adaptive AI interface
 CREATE TABLE IF NOT EXISTS user_profiles (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -51,7 +50,6 @@ CREATE TABLE IF NOT EXISTS user_profiles (
   
   UNIQUE(user_id)
 );
-
 -- Dynamic conversation sessions for adaptive AI chat
 CREATE TABLE IF NOT EXISTS conversation_sessions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -86,7 +84,6 @@ CREATE TABLE IF NOT EXISTS conversation_sessions (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   expires_at TIMESTAMP WITH TIME ZONE DEFAULT (NOW() + INTERVAL '24 hours')
 );
-
 -- Dynamic UI component configurations
 CREATE TABLE IF NOT EXISTS adaptive_ui_configs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -117,7 +114,6 @@ CREATE TABLE IF NOT EXISTS adaptive_ui_configs (
   
   UNIQUE(user_id)
 );
-
 -- AI conversation logs for continuous learning
 CREATE TABLE IF NOT EXISTS ai_conversation_logs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -152,7 +148,6 @@ CREATE TABLE IF NOT EXISTS ai_conversation_logs (
   
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
-
 -- Dynamic product recommendations with AI reasoning
 CREATE TABLE IF NOT EXISTS dynamic_recommendations (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -193,7 +188,6 @@ CREATE TABLE IF NOT EXISTS dynamic_recommendations (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   expires_at TIMESTAMP WITH TIME ZONE DEFAULT (NOW() + INTERVAL '7 days')
 );
-
 -- Enhance existing laptops table for dynamic AI processing
 DO $$
 BEGIN
@@ -221,14 +215,12 @@ BEGIN
         ALTER TABLE laptops ADD COLUMN comparison_highlights JSONB DEFAULT '{}';
     END IF;
 END $$;
-
 -- Create indexes for optimal performance
 CREATE INDEX IF NOT EXISTS idx_user_profiles_expertise ON user_profiles(user_id, expertise_level);
 CREATE INDEX IF NOT EXISTS idx_conversation_sessions_active ON conversation_sessions(user_id, created_at DESC) WHERE expires_at > NOW();
 CREATE INDEX IF NOT EXISTS idx_ai_conversation_logs_session ON ai_conversation_logs(session_id, turn_number);
 CREATE INDEX IF NOT EXISTS idx_dynamic_recommendations_user_score ON dynamic_recommendations(user_id, overall_score DESC);
 CREATE INDEX IF NOT EXISTS idx_conversation_sessions_expires ON conversation_sessions(expires_at) WHERE expires_at <= NOW();
-
 -- Vector indexes for AI embeddings (if vector extension is available)
 DO $$
 BEGIN
@@ -239,30 +231,23 @@ BEGIN
           ON conversation_sessions USING ivfflat (session_embedding vector_cosine_ops) WITH (lists = 100);
     END IF;
 END $$;
-
 -- Enable RLS for all new tables
 ALTER TABLE user_profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE conversation_sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE adaptive_ui_configs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ai_conversation_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE dynamic_recommendations ENABLE ROW LEVEL SECURITY;
-
 -- RLS Policies for secure access
 CREATE POLICY "Users own their profiles" ON user_profiles
   FOR ALL USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());
-
 CREATE POLICY "Users own their conversations" ON conversation_sessions
   FOR ALL USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());
-
 CREATE POLICY "Users own their UI configs" ON adaptive_ui_configs
   FOR ALL USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());
-
 CREATE POLICY "Users own their conversation logs" ON ai_conversation_logs
   FOR SELECT USING (user_id = auth.uid());
-
 CREATE POLICY "Users see their own recommendations" ON dynamic_recommendations
   FOR SELECT USING (user_id = auth.uid() OR user_id IS NULL);
-
 -- Create functions for dynamic AI integration
 
 -- Function to update user expertise level based on interactions
@@ -301,7 +286,6 @@ BEGIN
   END IF;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
-
 -- Function to generate dynamic UI configuration
 CREATE OR REPLACE FUNCTION generate_adaptive_ui_config(
   p_user_id UUID,
@@ -338,7 +322,6 @@ BEGIN
   RETURN ui_config;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
-
 -- Function to clean up expired sessions
 CREATE OR REPLACE FUNCTION cleanup_expired_sessions() RETURNS INTEGER AS $$
 DECLARE
@@ -349,7 +332,6 @@ BEGIN
   RETURN deleted_count;
 END;
 $$ LANGUAGE plpgsql;
-
 -- Create periodic cleanup job (if pg_cron is available)
 DO $$
 BEGIN

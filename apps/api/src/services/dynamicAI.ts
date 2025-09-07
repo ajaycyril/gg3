@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import OpenAI from 'openai';
 import logger from '../utils/logger';
 import { supabase } from '../db/supabaseClient';
+import mlRecommender from './mlRecommender';
 
 interface DynamicUIElement {
   type: 'button' | 'slider' | 'multiselect' | 'text' | 'quickaction';
@@ -14,6 +15,7 @@ interface DynamicUIElement {
 
 interface ConversationState {
   phase: 'initial' | 'discovery' | 'filtering' | 'recommendation' | 'refinement';
+  turnCount: number;
   collectedData: {
     budget?: { min: number; max: number };
     purpose?: string[];
@@ -36,9 +38,6 @@ class DynamicAIService {
     if (!process.env.OPENAI_API_KEY) {
       throw new Error('OpenAI API key is required');
     }
-
-    console.log('🔑 DynamicAI constructor - OpenAI API Key:', process.env.OPENAI_API_KEY.substring(0, 20) + '...');
-    console.log('🔑 DynamicAI constructor - Key length:', process.env.OPENAI_API_KEY.length);
 
     this.openai = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY,
@@ -63,10 +62,18 @@ class DynamicAIService {
       const currentSessionId = sessionId || randomUUID();
       let conversationState = this.conversations.get(currentSessionId) || {
         phase: 'initial',
+        turnCount: 0,
         collectedData: {},
       };
 
       console.log('🤖 Processing dynamic conversation...');
+
+      // **EXTRACT DATA AGGRESSIVELY** from every user input
+      const extractedData = this.extractDataFromInput(userInput, conversationState.collectedData);
+      if (Object.keys(extractedData).length > 0) {
+        conversationState.collectedData = { ...conversationState.collectedData, ...extractedData };
+        console.log('📝 Extracted data from input:', extractedData);
+      }
 
       // Get current gadgets from database to inform AI
       const { data: gadgets } = await supabase
@@ -102,20 +109,51 @@ class DynamicAIService {
                       type: { type: 'string', enum: ['button', 'slider', 'multiselect', 'quickaction'] },
                       id: { type: 'string' },
                       label: { type: 'string' },
-                      options: { type: 'array' },
+                      options: { 
+                        oneOf: [
+                          {
+                            type: 'array',
+                            items: { type: 'string' }
+                          },
+                          {
+                            type: 'object',
+                            properties: {
+                              min: { type: 'number' },
+                              max: { type: 'number' },
+                              step: { type: 'number' }
+                            }
+                          }
+                        ]
+                      },
                       action: { type: 'string' },
                       priority: { type: 'number' }
-                    }
+                    },
+                    required: ['type', 'id', 'label', 'priority']
                   }
                 },
                 collected_data: {
                   type: 'object',
                   properties: {
-                    budget: { type: 'object' },
-                    purpose: { type: 'array' },
-                    brands: { type: 'array' },
+                    budget: { 
+                      type: 'object',
+                      properties: {
+                        min: { type: 'number' },
+                        max: { type: 'number' }
+                      }
+                    },
+                    purpose: { 
+                      type: 'array',
+                      items: { type: 'string' }
+                    },
+                    brands: { 
+                      type: 'array',
+                      items: { type: 'string' }
+                    },
                     specs: { type: 'object' },
-                    priorities: { type: 'array' }
+                    priorities: { 
+                      type: 'array',
+                      items: { type: 'string' }
+                    }
                   }
                 },
                 database_filter: {
@@ -123,7 +161,10 @@ class DynamicAIService {
                   properties: {
                     price_min: { type: 'number' },
                     price_max: { type: 'number' },
-                    brands: { type: 'array' },
+                    brands: { 
+                      type: 'array',
+                      items: { type: 'string' }
+                    },
                     specs_filter: { type: 'object' }
                   }
                 }
@@ -144,8 +185,33 @@ class DynamicAIService {
 
       const aiResponse = JSON.parse(functionCall.arguments);
       
+      // **FORCE CONVERGENCE** - Prevent infinite discovery loops
+      if (conversationState.turnCount >= 2 || 
+          (aiResponse.phase !== 'recommendation' && Object.keys(conversationState.collectedData).length > 0)) {
+        
+        console.log('🚨 FORCING CONVERGENCE TO RECOMMENDATIONS');
+        
+        // Override AI response to force recommendations
+        aiResponse.phase = 'recommendation';
+        aiResponse.database_filter = {
+          price_min: conversationState.collectedData.budget?.min || 300,
+          price_max: conversationState.collectedData.budget?.max || 3000,
+          brands: conversationState.collectedData.brands || [],
+          specs_filter: { 
+            purpose: conversationState.collectedData.purpose?.[0] || 'general'
+          }
+        };
+        
+        aiResponse.response_text = "Perfect! I have enough information. Here are my top laptop recommendations for you:";
+        aiResponse.ui_elements = [
+          { type: 'quickaction', id: 'show_more', label: 'Show More Options', priority: 1 },
+          { type: 'button', id: 'new_search', label: 'Start New Search', priority: 2 }
+        ];
+      }
+
       // Update conversation state
       conversationState.phase = aiResponse.phase;
+      conversationState.turnCount += 1;
       if (aiResponse.collected_data) {
         conversationState.collectedData = { ...conversationState.collectedData, ...aiResponse.collected_data };
       }
@@ -154,7 +220,11 @@ class DynamicAIService {
       // Generate recommendations if we have enough data
       let recommendations: any[] = [];
       if (aiResponse.phase === 'recommendation' && aiResponse.database_filter) {
-        recommendations = await this.queryAndRecommend(aiResponse.database_filter, conversationState.collectedData);
+        recommendations = await this.queryAndRecommend(
+          aiResponse.database_filter,
+          conversationState.collectedData,
+          userId
+        );
       }
 
       return {
@@ -169,137 +239,283 @@ class DynamicAIService {
       console.error('❌ Dynamic AI processing failed:', error);
       logger.error('Dynamic AI conversation processing failed:', error);
       
-      // Fallback response
+      // Enhanced fallback response with proper dynamic UI
+      const fallbackUI = this.generateFallbackUI(userInput);
+      
       return {
-        response: "I'm here to help you find the perfect laptop! What are you looking for?",
+        response: "I'm here to help you find the perfect laptop! Let's start with what you're looking for.",
         sessionId: sessionId || randomUUID(),
-        dynamicUI: [
-          { type: 'button', id: 'gaming', label: 'Gaming Laptop', action: 'select_gaming', priority: 1 },
-          { type: 'button', id: 'work', label: 'Work Laptop', action: 'select_work', priority: 2 },
-          { type: 'button', id: 'student', label: 'Student Laptop', action: 'select_student', priority: 3 }
-        ]
+        dynamicUI: fallbackUI
       };
     }
   }
 
-  private buildDynamicSystemPrompt(state: ConversationState, availableGadgets: any[]): string {
-    return `You are GadgetGuru AI, a dynamic laptop recommendation system. Your job is to:
+  private extractDataFromInput(userInput: string, existingData: any): any {
+    const extracted: any = {};
+    const input = userInput.toLowerCase();
 
-1. **Generate dynamic UI elements** based on user input and conversation phase
-2. **Collect user preferences systematically** 
-3. **Create database filters** to find matching laptops
-4. **Provide final recommendations** from actual database results
+    // Extract purpose from input
+    if (input.includes('gaming') && !existingData.purpose?.includes('gaming')) {
+      extracted.purpose = ['gaming'];
+      extracted.budget = { min: 800, max: 2500 };
+    }
+    
+    if (input.includes('work') || input.includes('business') || input.includes('productivity')) {
+      extracted.purpose = ['work'];
+      extracted.budget = { min: 500, max: 1800 };
+    }
+    
+    if (input.includes('student') || input.includes('school') || input.includes('college')) {
+      extracted.purpose = ['student'];
+      extracted.budget = { min: 300, max: 1200 };
+    }
+    
+    if (input.includes('creative') || input.includes('design') || input.includes('video') || input.includes('photo')) {
+      extracted.purpose = ['creative'];
+      extracted.budget = { min: 1000, max: 3000 };
+    }
+
+    // Extract brands
+    const brands = ['apple', 'dell', 'hp', 'lenovo', 'asus', 'acer', 'msi', 'alienware', 'surface'];
+    const foundBrands = brands.filter(brand => input.includes(brand));
+    if (foundBrands.length > 0) {
+      extracted.brands = foundBrands.map(b => b.charAt(0).toUpperCase() + b.slice(1));
+    }
+
+    // Extract budget from numbers in input
+    const numbers = input.match(/\d+/g);
+    if (numbers && numbers.length >= 1) {
+      const num = parseInt(numbers[0]);
+      if (num > 100 && num < 5000) { // Reasonable laptop price range
+        if (input.includes('under') || input.includes('below') || input.includes('max')) {
+          extracted.budget = { min: 300, max: num };
+        } else if (input.includes('over') || input.includes('above') || input.includes('min')) {
+          extracted.budget = { min: num, max: 3000 };
+        } else {
+          extracted.budget = { min: num - 200, max: num + 200 };
+        }
+      }
+    }
+
+    return extracted;
+  }
+
+  private buildDynamicSystemPrompt(state: ConversationState, availableGadgets: any[]): string {
+    return `You are GadgetGuru AI, a dynamic laptop recommendation system. Your PRIMARY GOAL is to reach concrete recommendations within 2-3 exchanges.
+
+**CRITICAL CONVERGENCE RULES:**
+- After 2 exchanges, you MUST move to 'recommendation' phase
+- Always progress toward database filtering and final recommendations
+- Never generate endless discovery UI - CONVERGE TO RESULTS
 
 **Current Conversation State:**
 - Phase: ${state.phase}
 - Collected Data: ${JSON.stringify(state.collectedData)}
+- Turn Count: ${state.turnCount}
 
 **Available Gadgets in Database:**
 ${availableGadgets.slice(0, 5).map(g => `- ${g.name} (${g.brand}) - $${g.price}`).join('\n')}
 
-**Dynamic UI Generation Rules:**
-- **Initial Phase**: Show purpose buttons (Gaming, Work, Creative, Student)
-- **Discovery Phase**: Generate budget sliders, brand multiselect, feature toggles
-- **Filtering Phase**: Show refined options based on collected data
-- **Recommendation Phase**: Present final recommendations with reasoning
+**PHASE PROGRESSION (MANDATORY):**
+1. **Initial**: Show 3-4 purpose buttons (Gaming, Work, Creative, Student)
+2. **Discovery**: Show budget slider OR brand multiselect (ONE interaction only)  
+3. **Recommendation**: ALWAYS set phase to 'recommendation' and create database_filter
 
-**UI Element Types:**
-- \`button\`: Quick selection (Gaming, Work, etc.)
-- \`slider\`: Budget range, performance levels
-- \`multiselect\`: Brands, features, use cases
-- \`quickaction\`: "Show me options", "Filter by this", "More details"
+**CONVERGENCE LOGIC:**
+- If user selected gaming -> Set phase to 'recommendation', create database_filter with gaming preferences
+- If user selected work -> Set phase to 'recommendation', create database_filter with productivity preferences  
+- If user selected budget -> Set phase to 'recommendation', create database_filter with price range
+- If ANY meaningful data collected -> MOVE TO RECOMMENDATION PHASE
 
-**Database Filtering:**
-Based on collected data, create filters for:
-- Price range (price_min, price_max)
-- Brand preferences (brands array)
-- Specs matching (specs_filter object)
+**Database Filter Creation (REQUIRED for recommendations):**
+- Always include price_min and price_max (default: 300-3000 if not specified)
+- Include relevant brands based on use case
+- Set specs_filter based on purpose
 
-**Key Principles:**
-- Always generate 3-5 UI elements per response
-- Move conversation forward toward concrete recommendations
-- Use actual database data for final suggestions
-- Keep responses concise and actionable
+**UI Generation Rules:**
+- Maximum 2 discovery exchanges, then FORCE recommendations
+- Generate minimal UI that leads to quick decisions
+- Always include a "Show Recommendations" button after any selection
 
-Generate your response using the function call format.`;
+**Example Response Pattern:**
+{
+  "response_text": "Perfect! Based on your gaming needs, here are my top recommendations:",
+  "phase": "recommendation",
+  "ui_elements": [
+    {"type": "quickaction", "id": "show_more", "label": "Show More Options", "priority": 1},
+    {"type": "button", "id": "refine", "label": "Refine Search", "priority": 2}
+  ],
+  "database_filter": {
+    "price_min": 800,
+    "price_max": 2500,
+    "brands": ["ASUS", "MSI", "Alienware"],
+    "specs_filter": {"gpu": "gaming"}
+  }
+}
+
+ALWAYS PROGRESS TO RECOMMENDATIONS - DO NOT LOOP IN DISCOVERY!`;
   }
 
-  private async queryAndRecommend(filters: any, userData: any): Promise<any[]> {
+  private async queryAndRecommend(filters: any, userData: any, userId: string): Promise<any[]> {
     try {
-      console.log('🔍 Querying database with filters:', filters);
+      console.log('🔍 Using ML Recommender with filters:', filters);
 
-      let query = supabase
-        .from('gadgets')
-        .select('*');
+      // Convert filters to UserQuery format for ML recommender
+      const userQuery = {
+        purpose: this.extractPurposeFromFilters(filters, userData),
+        budget: {
+          min: filters.price_min || 300,
+          max: filters.price_max || 3000
+        },
+        brands: filters.brands || [],
+        specs: filters.specs_filter || {},
+        priorities: userData.priorities || [],
+        text: this.buildQueryText(userData)
+      };
 
-      // Apply dynamic filters
-      if (filters.price_min) {
-        query = query.gte('price', filters.price_min);
-      }
-      if (filters.price_max) {
-        query = query.lte('price', filters.price_max);
-      }
-      if (filters.brands && filters.brands.length > 0) {
-        query = query.in('brand', filters.brands);
-      }
+      // Use ML recommender instead of basic database query
+      const mlRecommendations = await mlRecommender.getRecommendations(
+        userQuery,
+        userId || 'anonymous',
+        randomUUID()
+      );
 
-      const { data: matchedGadgets, error } = await query.limit(5);
+      console.log('✅ ML recommendations received:', mlRecommendations.length);
 
-      if (error) {
-        console.error('Database query error:', error);
-        return [];
-      }
+      // Convert ML results to expected format
+      return mlRecommendations.map(scored => ({
+        laptop: scored.laptop,
+        rank: scored.score > 0.8 ? 1 : scored.score > 0.6 ? 2 : 3,
+        score: scored.score,
+        reasoning: this.buildReasoningText(scored),
+        highlights: scored.highlights,
+        warnings: scored.warnings,
+        valueScore: scored.valueScore,
+        similarityScore: scored.similarityScore,
+        recencyScore: scored.recencyScore
+      }));
 
-      console.log('📊 Found matched gadgets:', matchedGadgets?.length || 0);
-
-      // Use AI to rank and explain recommendations
-      if (matchedGadgets && matchedGadgets.length > 0) {
-        const rankingPrompt = `Based on user preferences: ${JSON.stringify(userData)}
-
-Available laptops:
-${matchedGadgets.map(g => `- ${g.name} (${g.brand}) - $${g.price} - Specs: ${JSON.stringify(g.specs)}`).join('\n')}
-
-Rank these laptops (1-3 top picks) and provide reasoning for each. Format as JSON array with:
-{
-  "laptop": [laptop object],
-  "rank": 1-3,
-  "score": 0.0-1.0,
-  "reasoning": "Why this is a good match",
-  "highlights": ["key feature 1", "key feature 2"]
-}`;
-
-        const rankingResponse = await this.openai.chat.completions.create({
-          model: 'gpt-3.5-turbo',
-          messages: [
-            { role: 'system', content: 'You are a laptop ranking expert. Return only valid JSON.' },
-            { role: 'user', content: rankingPrompt }
-          ],
-          temperature: 0.3,
-          max_tokens: 1000
-        });
-
-        const rankingText = rankingResponse.choices[0]?.message?.content || '[]';
-        try {
-          const rankings = JSON.parse(rankingText);
-          console.log('✅ AI rankings generated:', rankings.length);
-          return rankings;
-        } catch {
-          // Fallback to simple list if AI response isn't valid JSON
-          return matchedGadgets.slice(0, 3).map((gadget, index) => ({
-            laptop: gadget,
-            rank: index + 1,
-            score: 0.8 - (index * 0.1),
-            reasoning: `Good match for your requirements`,
-            highlights: ['Performance', 'Value', 'Reliability']
-          }));
-        }
-      }
-
-      return [];
     } catch (error) {
-      console.error('❌ Query and recommend failed:', error);
+      console.error('❌ ML recommendation failed:', error);
       return [];
     }
+  }
+
+  private extractPurposeFromFilters(filters: any, userData: any): string[] {
+    const purposes: string[] = [];
+    
+    // Extract from specs filter
+    if (filters.specs_filter?.purpose) {
+      purposes.push(filters.specs_filter.purpose);
+    }
+    
+    // Extract from collected data
+    if (userData.purpose) {
+      purposes.push(...userData.purpose);
+    }
+    
+    // Extract from GPU requirements (indicates gaming)
+    if (filters.specs_filter?.gpu === 'gaming') {
+      purposes.push('gaming');
+    }
+    
+    return purposes;
+  }
+
+  private buildQueryText(userData: any): string {
+    const parts = [];
+    
+    if (userData.purpose) parts.push(userData.purpose.join(' '));
+    if (userData.priorities) parts.push(userData.priorities.join(' '));
+    
+    return parts.join(' ') || 'general laptop';
+  }
+
+  private buildReasoningText(scored: any): string {
+    const reasons = [...scored.reasonings];
+    
+    // Add value insights
+    if (scored.valueScore > 0.8) {
+      reasons.unshift('🎯 Exceptional value for money');
+    } else if (scored.valueScore < 0.4) {
+      reasons.push('⚠️ Consider if price matches your needs');
+    }
+    
+    // Add recency insights
+    if (scored.recencyScore > 0.8) {
+      reasons.unshift('🆕 Latest technology');
+    } else if (scored.recencyScore < 0.4) {
+      reasons.push('📅 Older model - verify it meets current standards');
+    }
+    
+    return reasons.join('. ');
+  }
+
+  async getAdaptiveUIConfig(userId: string, context: Record<string, any> = {}): Promise<Record<string, any>> {
+    return {
+      layout: {
+        view_mode: 'cards',
+        density: 'normal',
+        sidebar_visible: true
+      },
+      filters: {
+        visible_filters: ['price', 'brand', 'use_case'],
+        advanced_filters_visible: false,
+        filter_complexity: 'simple'
+      },
+      content: {
+        spec_detail_level: 'basic',
+        show_benchmarks: false,
+        show_technical_details: false,
+        comparison_mode: 'simple'
+      },
+      recommendations: {
+        explanation_depth: 'moderate',
+        show_alternatives: true,
+        highlight_technical: false
+      },
+      interaction: {
+        chat_complexity: 'conversational',
+        suggested_questions_complexity: 5,
+        enable_deep_dive_mode: false
+      }
+    };
+  }
+
+  async generateAdaptiveRecommendationsForUser(
+    userId: string,
+    preferences: Record<string, any> = {},
+    context: Record<string, any> = {}
+  ): Promise<any[]> {
+    return [];
+  }
+
+  private generateFallbackUI(userInput: string): DynamicUIElement[] {
+    const lowerInput = userInput.toLowerCase();
+    
+    if (lowerInput.includes('gaming')) {
+      return [
+        { type: 'button', id: 'budget_high', label: '💰 High-End Gaming ($1500+)', action: 'select_high_budget', priority: 1 },
+        { type: 'button', id: 'budget_mid', label: '⚖️ Mid-Range Gaming ($800-$1500)', action: 'select_mid_budget', priority: 2 },
+        { type: 'button', id: 'budget_entry', label: '🎯 Entry Gaming ($500-$800)', action: 'select_entry_budget', priority: 3 },
+      ];
+    }
+    
+    if (lowerInput.includes('work') || lowerInput.includes('business')) {
+      return [
+        { type: 'button', id: 'portable', label: '🎒 Ultra Portable', action: 'select_portable', priority: 1 },
+        { type: 'button', id: 'performance', label: '💪 High Performance', action: 'select_performance', priority: 2 },
+        { type: 'button', id: 'budget_work', label: '💼 Budget Business', action: 'select_budget_work', priority: 3 },
+      ];
+    }
+    
+    // Default initial UI
+    return [
+      { type: 'button', id: 'gaming', label: '🎮 Gaming Laptop', action: 'select_gaming', priority: 1 },
+      { type: 'button', id: 'work', label: '💼 Work Laptop', action: 'select_work', priority: 2 },
+      { type: 'button', id: 'student', label: '🎓 Student Laptop', action: 'select_student', priority: 3 },
+      { type: 'button', id: 'creative', label: '🎨 Creative Work', action: 'select_creative', priority: 4 },
+    ];
   }
 }
 

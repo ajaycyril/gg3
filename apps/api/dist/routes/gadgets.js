@@ -185,4 +185,21 @@ router.get('/meta/brands', (0, errorHandler_1.asyncHandler)(async (req, res) => 
     };
     res.json(response);
 }));
+// Alias for clients expecting /api/gadgets/brands
+router.get('/brands', (0, errorHandler_1.asyncHandler)(async (req, res) => {
+    const { data, error } = await supabaseClient_1.supabase
+        .from('gadgets')
+        .select('brand')
+        .not('brand', 'is', null)
+        .order('brand');
+    if (error) {
+        logger_1.default.error('Error fetching brands (alias):', error);
+        return res.status(500).json({
+            error: 'Failed to fetch brands',
+            code: 'DATABASE_ERROR',
+        });
+    }
+    const brands = [...new Set(data?.map(item => item.brand).filter(Boolean))];
+    res.json({ success: true, data: brands });
+}));
 exports.default = router;

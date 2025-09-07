@@ -54,6 +54,14 @@ class DynamicAIService {
     }
   }
 
+  private isSmallTalk(input: string): boolean {
+    const s = input.trim().toLowerCase();
+    const phrases = [
+      'hi', 'hello', 'hey', 'how are you', 'what\'s up', 'thanks', 'thank you', 'ok', 'cool', 'bye', 'goodbye'
+    ];
+    return phrases.some(p => s === p || s.includes(p));
+  }
+
   async processConversation(
     userId: string,
     userInput: string,
@@ -75,6 +83,20 @@ class DynamicAIService {
       };
 
       console.log('🤖 Processing dynamic conversation...');
+
+      // Handle smalltalk without forcing recommendations
+      if (this.isSmallTalk(userInput)) {
+        const friendly = `I'm doing great! 😊 I can help you find the perfect gadget when you're ready. Tell me what you're looking for (e.g., "student laptop under $800", "gaming laptop 16GB RAM").`;
+        return {
+          response: friendly,
+          sessionId: currentSessionId,
+          dynamicUI: [
+            { type: 'button', id: 'gaming', label: '🎮 Gaming Laptop', action: 'select_gaming', priority: 1 },
+            { type: 'button', id: 'student', label: '🎓 Student Laptop', action: 'select_student', priority: 2 },
+            { type: 'button', id: 'work', label: '💼 Work Laptop', action: 'select_work', priority: 3 }
+          ]
+        };
+      }
 
       // **EXTRACT DATA AGGRESSIVELY** from every user input
       const extractedData = this.extractDataFromInput(userInput, conversationState.collectedData);
@@ -195,8 +217,9 @@ class DynamicAIService {
       const aiResponse = JSON.parse(functionCall.arguments);
       
       // **FORCE CONVERGENCE** - Prevent infinite discovery loops
-      if (conversationState.turnCount >= 2 || 
-          (aiResponse.phase !== 'recommendation' && Object.keys(conversationState.collectedData).length > 0)) {
+      if ((conversationState.turnCount >= 2 || 
+          (aiResponse.phase !== 'recommendation' && Object.keys(conversationState.collectedData).length > 0)) &&
+          !this.isSmallTalk(userInput)) {
         
         console.log('🚨 FORCING CONVERGENCE TO RECOMMENDATIONS');
         

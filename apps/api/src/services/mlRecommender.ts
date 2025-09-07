@@ -37,11 +37,12 @@ class MLRecommenderService {
   
   // Core feature weights (learned and adapted over time)
   private featureWeights = {
-    performance: 0.3,
-    value: 0.25,
-    brand: 0.15,
-    specs: 0.2,
-    recency: 0.1
+    performance: 0.28,
+    value: 0.27,
+    brand: 0.12,
+    specs: 0.18,
+    recency: 0.08,
+    budget: 0.07
   };
 
   /**
@@ -65,10 +66,18 @@ class MLRecommenderService {
         this.calculateLaptopScore(laptop, userQuery, userId)
       );
 
-      // 3. Sort by overall score (value + similarity + recency)
-      const rankedLaptops = scoredLaptops
-        .sort((a, b) => b.score - a.score)
-        .slice(0, 5); // Top 5 recommendations
+      // 3. Sort by overall score (value + similarity + recency) and diversify brands
+      const prelim = scoredLaptops.sort((a, b) => b.score - a.score);
+      const brandCap: Record<string, number> = {};
+      const rankedLaptops: LaptopScore[] = [];
+      for (const s of prelim) {
+        const brand = (s.laptop.brand || '').trim();
+        brandCap[brand] = brandCap[brand] || 0;
+        if (brandCap[brand] >= 2) continue; // limit over-concentration
+        rankedLaptops.push(s);
+        brandCap[brand] += 1;
+        if (rankedLaptops.length >= 5) break;
+      }
 
       // 4. Apply value-for-money filter (eliminate overpriced last-gen)
       const valueOptimized = this.filterByValueForMoney(rankedLaptops);
@@ -161,15 +170,19 @@ class MLRecommenderService {
     // 5. BRAND REPUTATION SCORE
     const brandScore = this.calculateBrandScore(laptop, query);
 
+    // 6. BUDGET FIT SCORE - closeness to user's stated budget
+    const budgetScore = this.calculateBudgetFitScore(laptop, query);
+
     // Combine scores with adaptive weights
-    const userWeights = this.userPreferenceWeights.get(userId) || this.featureWeights;
+    const userWeights = this.userPreferenceWeights.get(userId) || this.featureWeights as any;
     
     const finalScore = (
       similarityScore * userWeights.specs +
       valueScore * userWeights.value +
       recencyScore * userWeights.recency +
       userPrefScore * userWeights.performance +
-      brandScore * userWeights.brand
+      brandScore * userWeights.brand +
+      budgetScore * userWeights.budget
     );
 
     // Generate highlights based on top scoring factors
@@ -228,6 +241,21 @@ class MLRecommenderService {
       factors++;
     }
 
+    // Parse explicit RAM or storage hints from query.text
+    if (query.text) {
+      const lower = query.text.toLowerCase();
+      const ramMatch = lower.match(/(\d{2})\s*gb\s*ram/);
+      if (ramMatch && laptop.specs?.ram) {
+        const need = parseInt(ramMatch[1]);
+        const have = parseInt(String(laptop.specs.ram).replace(/[^0-9]/g, ''));
+        if (!isNaN(need) && !isNaN(have)) {
+          score += have >= need ? 0.8 : 0.2;
+          factors++;
+          if (have >= need) reasonings.push(`Meets RAM requirement (${have}GB)`);
+        }
+      }
+    }
+
     return factors > 0 ? score / factors : 0.5;
   }
 
@@ -265,7 +293,7 @@ class MLRecommenderService {
     performanceScore = Math.min(performanceScore / 4, 1);
 
     // Calculate value ratio (performance per dollar)
-    const expectedPrice = performanceScore * 2000; // $2000 for perfect specs
+    const expectedPrice = performanceScore * 2200; // slightly steeper curve
     const valueRatio = expectedPrice / price;
 
     let valueScore = Math.min(valueRatio, 2) / 2; // Cap at 2x value
@@ -279,6 +307,14 @@ class MLRecommenderService {
     }
 
     return Math.max(valueScore, 0.1); // Minimum score
+  }
+
+  private calculateBudgetFitScore(laptop: any, query: UserQuery): number {
+    if (!laptop.price || !query.budget) return 0.5;
+    const mid = (query.budget.min + query.budget.max) / 2;
+    const diff = Math.abs(laptop.price - mid) / Math.max(200, mid);
+    // Higher when close to center of user's range (with tolerance)
+    return Math.max(0.1, 1 - diff);
   }
 
   /**

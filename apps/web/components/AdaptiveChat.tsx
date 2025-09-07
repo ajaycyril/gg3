@@ -35,6 +35,9 @@ export default function AdaptiveChat({ onRecommendationsReceived, onUIConfigUpda
   const [isLoading, setIsLoading] = useState(false)
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [currentDynamicUI, setCurrentDynamicUI] = useState<DynamicUIElement[]>([])
+  const [filters, setFilters] = useState<{ price_min?: number; price_max?: number; brands?: string[] }>({})
+  const [facets, setFacets] = useState<any | null>(null)
+  const [nextQuestion, setNextQuestion] = useState<any | null>(null)
 
   // Initialize with a simple welcome message
   useEffect(() => {
@@ -87,6 +90,16 @@ export default function AdaptiveChat({ onRecommendationsReceived, onUIConfigUpda
           onRecommendationsReceived?.(response.data.recommendations)
         }
 
+        // Fetch facets and next best question for adaptive narrowing
+        try {
+          const facetUrl = `/api/ai/facets${Object.keys(filters).length ? `?filters=${encodeURIComponent(JSON.stringify(filters))}` : ''}`
+          const facetsRes = await fetch(facetUrl)
+          if (facetsRes.ok) setFacets((await facetsRes.json()).data)
+          const nqUrl = `/api/ai/next-question${Object.keys(filters).length ? `?filters=${encodeURIComponent(JSON.stringify(filters))}` : ''}`
+          const nqRes = await fetch(nqUrl)
+          if (nqRes.ok) setNextQuestion((await nqRes.json()).data)
+        } catch {}
+
       } else {
         throw new Error('Failed to get AI response')
       }
@@ -108,6 +121,23 @@ export default function AdaptiveChat({ onRecommendationsReceived, onUIConfigUpda
       setIsLoading(false)
     }
   }, [isLoading, sessionId, user?.id, onRecommendationsReceived])
+
+  const applyFilterDelta = async (delta: any) => {
+    const next = { ...filters }
+    if (delta.price_min !== undefined) next.price_min = delta.price_min
+    if (delta.price_max !== undefined) next.price_max = delta.price_max
+    if (delta.brands) {
+      const s = new Set([...(next.brands || []), ...delta.brands])
+      next.brands = Array.from(s)
+    }
+    setFilters(next)
+    try {
+      const facetsRes = await fetch(`/api/ai/facets?filters=${encodeURIComponent(JSON.stringify(next))}`)
+      if (facetsRes.ok) setFacets((await facetsRes.json()).data)
+      const nqRes = await fetch(`/api/ai/next-question?filters=${encodeURIComponent(JSON.stringify(next))}`)
+      if (nqRes.ok) setNextQuestion((await nqRes.json()).data)
+    } catch {}
+  }
 
   const handleDynamicUIAction = (element: DynamicUIElement, value?: any) => {
     let message = ''
@@ -171,6 +201,45 @@ export default function AdaptiveChat({ onRecommendationsReceived, onUIConfigUpda
         </div>
       </div>
 
+      {/* Facets & Next Question */}
+      <div className="p-4 border-b bg-gray-50">
+        {facets && (
+          <div className="mb-3">
+            <div className="text-xs text-gray-600 mb-1">Candidates: {facets.candidates}</div>
+            <div className="mb-2">
+              <div className="text-sm font-medium mb-1">Top Brands</div>
+              <div className="flex flex-wrap gap-2">
+                {facets.brands?.map((b: any) => (
+                  <Button key={b.brand} variant={(filters.brands || []).includes(b.brand) ? 'primary' : 'outline'} size="sm" onClick={() => applyFilterDelta({ brands: [b.brand] })}>{b.brand} ({b.count})</Button>
+                ))}
+              </div>
+            </div>
+            {facets.price?.buckets?.length > 0 && (
+              <div>
+                <div className="text-sm font-medium mb-1">Budget</div>
+                <div className="flex flex-wrap gap-2">
+                  {facets.price.buckets.slice(0,4).map((bk: any, idx: number) => (
+                    <Button key={idx} variant="outline" size="sm" onClick={() => applyFilterDelta({ price_min: bk.min, price_max: bk.max })}>
+                      ${bk.min} - ${bk.max}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+        {nextQuestion?.question && (
+          <div>
+            <div className="text-sm font-medium mb-1">{nextQuestion.question.text}</div>
+            <div className="flex flex-wrap gap-2">
+              {nextQuestion.question.options?.map((opt: any, idx: number) => (
+                <Button key={idx} variant="outline" size="sm" onClick={() => applyFilterDelta(opt.value)}>{opt.label}</Button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Messages Area */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.map((message, index) => (
@@ -190,7 +259,7 @@ export default function AdaptiveChat({ onRecommendationsReceived, onUIConfigUpda
                   renderDynamicUI(message.dynamicUI)
                 )}
 
-                {/* Show recommendations */}
+                {/* Show recommendations with explanations */}
                 {message.recommendations && message.recommendations.length > 0 && (
                   <div className="mt-4 p-4 bg-green-50 rounded-lg border border-green-200">
                     <p className="text-sm font-semibold text-green-800 mb-2">
@@ -207,6 +276,11 @@ export default function AdaptiveChat({ onRecommendationsReceived, onUIConfigUpda
                           </span>
                         </div>
                         <p className="text-xs text-gray-600 mt-1">{rec.reasoning}</p>
+                        <div className="mt-1 text-[11px] text-gray-500">
+                          {typeof rec.valueScore === 'number' && <span className="mr-2">Value: {(rec.valueScore*100|0)/100}</span>}
+                          {typeof rec.similarityScore === 'number' && <span className="mr-2">Match: {(rec.similarityScore*100|0)/100}</span>}
+                          {typeof rec.recencyScore === 'number' && <span className="mr-2">Recency: {(rec.recencyScore*100|0)/100}</span>}
+                        </div>
                         <div className="flex gap-1 mt-2">
                           {rec.highlights?.map((highlight: string, hidx: number) => (
                             <span key={hidx} className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">

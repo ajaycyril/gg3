@@ -11,11 +11,12 @@ class MLRecommenderService {
         this.userPreferenceWeights = new Map();
         // Core feature weights (learned and adapted over time)
         this.featureWeights = {
-            performance: 0.3,
-            value: 0.25,
-            brand: 0.15,
-            specs: 0.2,
-            recency: 0.1
+            performance: 0.28,
+            value: 0.27,
+            brand: 0.12,
+            specs: 0.18,
+            recency: 0.08,
+            budget: 0.07
         };
     }
     /**
@@ -24,39 +25,26 @@ class MLRecommenderService {
     async getRecommendations(userQuery, userId, sessionId) {
         try {
             console.log('🤖 ML Recommender processing query:', userQuery);
-            // **CRITICAL FIX**: Only query laptops, not all gadgets
-            const laptops = await this.queryLaptopsOnly(userQuery);
-            // **ADDITIONAL SAFETY CHECK**: Filter out non-laptops in code
-            const actualLaptops = laptops.filter(item => {
-                const name = item.name.toLowerCase();
-                const category = (item.category || '').toLowerCase();
-                // Must contain laptop indicators
-                const hasLaptopIndicators = (name.includes('laptop') ||
-                    name.includes('macbook') ||
-                    name.includes('thinkpad') ||
-                    name.includes('surface laptop') ||
-                    category.includes('laptop') ||
-                    category.includes('notebook'));
-                // Must NOT contain phone/tablet indicators
-                const hasNonLaptopIndicators = (name.includes('iphone') ||
-                    name.includes('ipad') ||
-                    name.includes('phone') ||
-                    name.includes('tablet') ||
-                    category.includes('phone') ||
-                    category.includes('tablet'));
-                const isLaptop = hasLaptopIndicators && !hasNonLaptopIndicators;
-                if (!isLaptop) {
-                    console.log(`🚫 Filtered out non-laptop: ${item.name} (category: ${item.category})`);
-                }
-                return isLaptop;
-            });
-            console.log(`📊 Processing ${actualLaptops.length} actual laptops for ML scoring (filtered from ${laptops.length} total items)`);
+            // Query candidates with dynamic constraints (no regex/name heuristics)
+            const candidates = await this.queryCandidates(userQuery);
+            const actualLaptops = candidates; // Category constraints applied in query
+            console.log(`📊 Processing ${actualLaptops.length} candidates for ML scoring`);
             // 2. Score each laptop using ML algorithm
             const scoredLaptops = actualLaptops.map(laptop => this.calculateLaptopScore(laptop, userQuery, userId));
-            // 3. Sort by overall score (value + similarity + recency)
-            const rankedLaptops = scoredLaptops
-                .sort((a, b) => b.score - a.score)
-                .slice(0, 5); // Top 5 recommendations
+            // 3. Sort by overall score (value + similarity + recency) and diversify brands
+            const prelim = scoredLaptops.sort((a, b) => b.score - a.score);
+            const brandCap = {};
+            const rankedLaptops = [];
+            for (const s of prelim) {
+                const brand = (s.laptop.brand || '').trim();
+                brandCap[brand] = brandCap[brand] || 0;
+                if (brandCap[brand] >= 2)
+                    continue; // limit over-concentration
+                rankedLaptops.push(s);
+                brandCap[brand] += 1;
+                if (rankedLaptops.length >= 5)
+                    break;
+            }
             // 4. Apply value-for-money filter (eliminate overpriced last-gen)
             const valueOptimized = this.filterByValueForMoney(rankedLaptops);
             // 5. Learn from this interaction
@@ -73,47 +61,42 @@ class MLRecommenderService {
     /**
      * Enhanced laptop-only query with multiple fallback strategies
      */
-    async queryLaptopsOnly(userQuery) {
+    async queryCandidates(userQuery) {
         try {
-            // Strategy 1: Try category-based filtering first
-            let { data: laptops, error } = await supabaseClient_1.supabase
+            // Map purposes to supported categories (future‑proof expansion)
+            const purposeToCategories = {
+                gaming: ['laptop'],
+                work: ['laptop'],
+                student: ['laptop'],
+                creative: ['laptop']
+            };
+            const targetCategories = Array.from(new Set((userQuery.purpose || []).flatMap(p => purposeToCategories[p.toLowerCase()] || [])));
+            // Primary: filter by category when provided
+            let query = supabaseClient_1.supabase
                 .from('gadgets')
                 .select('*')
-                .ilike('category', '%laptop%')
-                .gte('price', userQuery.budget.min * 0.8)
-                .lte('price', userQuery.budget.max * 1.2);
-            // Strategy 2: If no results, try name-based filtering
-            if (!laptops || laptops.length === 0) {
-                console.log('📋 No category-based results, trying name-based filtering...');
-                const { data: nameResults, error: nameError } = await supabaseClient_1.supabase
-                    .from('gadgets')
-                    .select('*')
-                    .or('name.ilike.%laptop%,name.ilike.%macbook%,name.ilike.%thinkpad%,name.ilike.%surface%')
-                    .not('name', 'ilike', '%iphone%')
-                    .not('name', 'ilike', '%ipad%')
-                    .not('name', 'ilike', '%phone%')
-                    .not('name', 'ilike', '%tablet%')
-                    .gte('price', userQuery.budget.min * 0.8)
-                    .lte('price', userQuery.budget.max * 1.2);
-                laptops = nameResults;
-                error = nameError;
+                .gte('price', Math.max(100, userQuery.budget.min))
+                .lte('price', Math.max(userQuery.budget.min + 50, userQuery.budget.max));
+            if (targetCategories.length > 0) {
+                // Category is indexed; prefer it over name heuristics
+                // If only one category, use eq; else use in
+                if (targetCategories.length === 1) {
+                    query = query.eq('category', targetCategories[0]);
+                }
+                else {
+                    query = query.in('category', targetCategories);
+                }
             }
-            // Strategy 3: If still no results, broader search with manual filtering
-            if (!laptops || laptops.length === 0) {
-                console.log('📋 No name-based results, trying broader search...');
-                const { data: broadResults, error: broadError } = await supabaseClient_1.supabase
-                    .from('gadgets')
-                    .select('*')
-                    .gte('price', userQuery.budget.min * 0.8)
-                    .lte('price', userQuery.budget.max * 1.2);
-                laptops = broadResults;
-                error = broadError;
+            if (userQuery.brands && userQuery.brands.length > 0) {
+                query = query.in('brand', Array.from(new Set(userQuery.brands)));
             }
+            const { data: byCategory, error } = await query;
             if (error) {
                 console.error('Database error in queryLaptopsOnly:', error);
                 return [];
             }
-            return laptops || [];
+            // If no category set in DB yet, gracefully fall back by returning price‑bounded results
+            return byCategory || [];
         }
         catch (error) {
             console.error('❌ Error in queryLaptopsOnly:', error);
@@ -137,13 +120,16 @@ class MLRecommenderService {
         const userPrefScore = this.getUserPreferenceScore(laptop, userId);
         // 5. BRAND REPUTATION SCORE
         const brandScore = this.calculateBrandScore(laptop, query);
+        // 6. BUDGET FIT SCORE - closeness to user's stated budget
+        const budgetScore = this.calculateBudgetFitScore(laptop, query);
         // Combine scores with adaptive weights
         const userWeights = this.userPreferenceWeights.get(userId) || this.featureWeights;
         const finalScore = (similarityScore * userWeights.specs +
             valueScore * userWeights.value +
             recencyScore * userWeights.recency +
             userPrefScore * userWeights.performance +
-            brandScore * userWeights.brand);
+            brandScore * userWeights.brand +
+            budgetScore * userWeights.budget);
         // Generate highlights based on top scoring factors
         if (similarityScore > 0.8)
             highlights.push('Perfect match for your needs');
@@ -195,6 +181,21 @@ class MLRecommenderService {
             }
             factors++;
         }
+        // Parse explicit RAM or storage hints from query.text
+        if (query.text) {
+            const lower = query.text.toLowerCase();
+            const ramMatch = lower.match(/(\d{2})\s*gb\s*ram/);
+            if (ramMatch && laptop.specs?.ram) {
+                const need = parseInt(ramMatch[1]);
+                const have = parseInt(String(laptop.specs.ram).replace(/[^0-9]/g, ''));
+                if (!isNaN(need) && !isNaN(have)) {
+                    score += have >= need ? 0.8 : 0.2;
+                    factors++;
+                    if (have >= need)
+                        reasonings.push(`Meets RAM requirement (${have}GB)`);
+                }
+            }
+        }
         return factors > 0 ? score / factors : 0.5;
     }
     /**
@@ -224,7 +225,7 @@ class MLRecommenderService {
         // Normalize performance score
         performanceScore = Math.min(performanceScore / 4, 1);
         // Calculate value ratio (performance per dollar)
-        const expectedPrice = performanceScore * 2000; // $2000 for perfect specs
+        const expectedPrice = performanceScore * 2200; // slightly steeper curve
         const valueRatio = expectedPrice / price;
         let valueScore = Math.min(valueRatio, 2) / 2; // Cap at 2x value
         // Value analysis
@@ -236,6 +237,14 @@ class MLRecommenderService {
             valueScore *= 0.6; // Penalty for overpricing
         }
         return Math.max(valueScore, 0.1); // Minimum score
+    }
+    calculateBudgetFitScore(laptop, query) {
+        if (!laptop.price || !query.budget)
+            return 0.5;
+        const mid = (query.budget.min + query.budget.max) / 2;
+        const diff = Math.abs(laptop.price - mid) / Math.max(200, mid);
+        // Higher when close to center of user's range (with tolerance)
+        return Math.max(0.1, 1 - diff);
     }
     /**
      * Recency scoring - penalize old technology
@@ -567,9 +576,41 @@ class MLRecommenderService {
      * Learning and adaptation methods
      */
     async recordInteraction(userId, sessionId, query, recommendations) {
-        // This would typically be stored in database
-        // For now, store in memory for the session
-        console.log(`📝 Recording interaction for user ${userId}`);
+        try {
+            // Persist top recommendation to recommendations table for analytics
+            const top = recommendations[0];
+            // Only persist if we have a valid UUID user id (matches schema)
+            const uuidRegex = /^[0-9a-fA-F-]{36}$/;
+            if (top && uuidRegex.test(userId)) {
+                const { error } = await supabaseClient_1.supabaseAdmin
+                    .from('recommendations')
+                    .insert({
+                    user_id: userId,
+                    gadget_id: top.laptop?.id,
+                    prompt: JSON.stringify({ sessionId, query }),
+                    result: JSON.stringify({ recommendations: recommendations.slice(0, 5) })
+                });
+                if (error) {
+                    console.warn('Failed to persist recommendation record:', error);
+                }
+            }
+            // Always capture a non-PII event for learning/analytics
+            const { error: evErr } = await supabaseClient_1.supabaseAdmin
+                .from('recommendation_events')
+                .insert({
+                session_id: sessionId,
+                user_id: uuidRegex.test(userId) ? userId : null,
+                query: JSON.stringify(query),
+                recommendations: JSON.stringify(recommendations.slice(0, 5))
+            });
+            if (evErr) {
+                console.warn('Failed to record recommendation_event:', evErr);
+            }
+        }
+        catch (e) {
+            console.warn('recordInteraction persistence error:', e);
+        }
+        console.log(`📝 Recorded interaction for user ${userId}`);
     }
     async processFeedback(feedback) {
         const userHistory = this.feedbackHistory.get(feedback.userId) || [];

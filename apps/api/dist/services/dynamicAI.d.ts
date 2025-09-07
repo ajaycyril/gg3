@@ -11,10 +11,11 @@ interface DynamicUIElement {
     priority: number;
 }
 declare class DynamicAIService {
-    private openai;
+    private openai?;
     private readonly MODEL_GPT4;
     private conversations;
     constructor();
+    private ensureOpenAI;
     processConversation(userId: string, userInput: string, sessionId?: string, context?: Record<string, any>): Promise<{
         response: string;
         sessionId: string;
@@ -22,6 +23,8 @@ declare class DynamicAIService {
         recommendations?: any[];
         databaseQuery?: any;
     }>;
+    private sanitizeFilters;
+    private countCandidates;
     private extractDataFromInput;
     private buildDynamicSystemPrompt;
     private queryAndRecommend;

@@ -7,7 +7,10 @@ exports.supabaseAdmin = exports.supabase = exports.db = void 0;
 // Load environment variables FIRST - before any other imports
 const dotenv_1 = __importDefault(require("dotenv"));
 const path_1 = __importDefault(require("path"));
-dotenv_1.default.config({ path: path_1.default.resolve(__dirname, '../../.env') });
+// Avoid loading .env on Vercel builds; rely on project env vars there
+if (!process.env.VERCEL) {
+    dotenv_1.default.config({ path: path_1.default.resolve(__dirname, '../../.env') });
+}
 const supabase_js_1 = require("@supabase/supabase-js");
 const logger_1 = __importDefault(require("../utils/logger"));
 // V0-optimized Supabase client with serverless connection pooling
@@ -18,14 +21,20 @@ class DatabaseClient {
         this.maxConnections = 5; // Limit for serverless
         this.connectionTimeout = 30000; // 30s timeout
         this.lastActivity = Date.now();
-        const supabaseUrl = process.env.SUPABASE_URL;
-        const supabaseKey = process.env.SUPABASE_ANON_KEY;
-        const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-        if (!supabaseUrl || !supabaseKey || !supabaseServiceKey) {
-            throw new Error('Missing required Supabase environment variables');
-        }
+        const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+        const supabaseKey = process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+        const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+        // Do not throw during build; routes will fail at runtime if truly misconfigured
+        const missing = [];
+        if (!supabaseUrl)
+            missing.push('SUPABASE_URL');
+        if (!supabaseKey)
+            missing.push('SUPABASE_ANON_KEY');
+        if (!supabaseServiceKey)
+            missing.push('SUPABASE_SERVICE_ROLE_KEY');
+        const warn = missing.length > 0;
         // V0 Edge Runtime compatible client configuration
-        this.client = (0, supabase_js_1.createClient)(supabaseUrl, supabaseKey, {
+        this.client = (0, supabase_js_1.createClient)(supabaseUrl || 'http://localhost', supabaseKey || 'anon', {
             auth: {
                 autoRefreshToken: false,
                 persistSession: false,
@@ -41,7 +50,7 @@ class DatabaseClient {
             }
         });
         // Admin client optimized for serverless
-        this.adminClient = (0, supabase_js_1.createClient)(supabaseUrl, supabaseServiceKey, {
+        this.adminClient = (0, supabase_js_1.createClient)(supabaseUrl || 'http://localhost', supabaseServiceKey || supabaseKey || 'anon', {
             auth: {
                 autoRefreshToken: false,
                 persistSession: false
@@ -55,7 +64,12 @@ class DatabaseClient {
                 }
             }
         });
-        logger_1.default.info('V0-optimized database clients initialized');
+        if (warn) {
+            logger_1.default.warn('Supabase env vars are not fully configured at init; using placeholders until runtime');
+        }
+        else {
+            logger_1.default.info('V0-optimized database clients initialized');
+        }
         // Setup serverless cleanup
         this.setupServerlessCleanup();
     }

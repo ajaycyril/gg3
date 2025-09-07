@@ -12,13 +12,23 @@ class DynamicAIService {
     constructor() {
         this.MODEL_GPT4 = 'gpt-4o';
         this.conversations = new Map();
-        if (!process.env.OPENAI_API_KEY) {
-            throw new Error('OpenAI API key is required');
+        const key = process.env.OPENAI_API_KEY;
+        if (key) {
+            this.openai = new openai_1.default({ apiKey: key });
+            logger_1.default.info('DynamicAI service initialized');
         }
-        this.openai = new openai_1.default({
-            apiKey: process.env.OPENAI_API_KEY,
-        });
-        logger_1.default.info('DynamicAI service initialized');
+        else {
+            logger_1.default.warn('DynamicAI initializing without OPENAI_API_KEY; will attempt lazy init at runtime');
+        }
+    }
+    ensureOpenAI() {
+        if (!this.openai) {
+            const key = process.env.OPENAI_API_KEY;
+            if (!key) {
+                throw new Error('OpenAI API key is required');
+            }
+            this.openai = new openai_1.default({ apiKey: key });
+        }
     }
     async processConversation(userId, userInput, sessionId, context) {
         try {
@@ -42,6 +52,7 @@ class DynamicAIService {
                 .limit(10);
             // Create AI prompt for dynamic interface generation
             const systemPrompt = this.buildDynamicSystemPrompt(conversationState, gadgets || []);
+            this.ensureOpenAI();
             const response = await this.openai.chat.completions.create({
                 model: this.MODEL_GPT4,
                 messages: [
@@ -169,7 +180,8 @@ class DynamicAIService {
             // Generate recommendations if we have enough data
             let recommendations = [];
             if (aiResponse.phase === 'recommendation' && aiResponse.database_filter) {
-                recommendations = await this.queryAndRecommend(aiResponse.database_filter, conversationState.collectedData);
+                const sanitized = await this.sanitizeFilters(aiResponse.database_filter);
+                recommendations = await this.queryAndRecommend(sanitized, conversationState.collectedData, userId);
             }
             return {
                 response: aiResponse.response_text,
@@ -189,6 +201,43 @@ class DynamicAIService {
                 sessionId: sessionId || (0, node_crypto_1.randomUUID)(),
                 dynamicUI: fallbackUI
             };
+        }
+    }
+    async sanitizeFilters(filters) {
+        const out = { ...filters };
+        const min = typeof out.price_min === 'number' ? out.price_min : 300;
+        const max = typeof out.price_max === 'number' ? out.price_max : 3000;
+        out.price_min = Math.max(100, Math.min(min, max - 50));
+        out.price_max = Math.max(out.price_min + 50, Math.min(max, 10000));
+        if (Array.isArray(out.brands)) {
+            out.brands = Array.from(new Set(out.brands.map((b) => (b || '').trim()))).filter(Boolean);
+        }
+        // Validate candidate count and relax if zero
+        let count = await this.countCandidates(out);
+        if (count === 0) {
+            out.price_min = Math.floor(out.price_min * 0.75);
+            out.price_max = Math.ceil(out.price_max * 1.25);
+            count = await this.countCandidates(out);
+        }
+        if (count === 0 && Array.isArray(out.brands) && out.brands.length > 0) {
+            delete out.brands;
+        }
+        return out;
+    }
+    async countCandidates(filters) {
+        try {
+            let q = supabaseClient_1.supabase.from('gadgets').select('id', { count: 'exact', head: true });
+            if (typeof filters.price_min === 'number')
+                q = q.gte('price', filters.price_min);
+            if (typeof filters.price_max === 'number')
+                q = q.lte('price', filters.price_max);
+            if (Array.isArray(filters.brands) && filters.brands.length > 0)
+                q = q.in('brand', filters.brands);
+            const { count } = await q;
+            return count || 0;
+        }
+        catch {
+            return 0;
         }
     }
     extractDataFromInput(userInput, existingData) {
@@ -290,7 +339,7 @@ ${availableGadgets.slice(0, 5).map(g => `- ${g.name} (${g.brand}) - $${g.price}`
 
 ALWAYS PROGRESS TO RECOMMENDATIONS - DO NOT LOOP IN DISCOVERY!`;
     }
-    async queryAndRecommend(filters, userData) {
+    async queryAndRecommend(filters, userData, userId) {
         try {
             console.log('🔍 Using ML Recommender with filters:', filters);
             // Convert filters to UserQuery format for ML recommender
@@ -306,8 +355,7 @@ ALWAYS PROGRESS TO RECOMMENDATIONS - DO NOT LOOP IN DISCOVERY!`;
                 text: this.buildQueryText(userData)
             };
             // Use ML recommender instead of basic database query
-            const mlRecommendations = await mlRecommender_1.default.getRecommendations(userQuery, 'default-user', // TODO: Get actual user ID
-            (0, node_crypto_1.randomUUID)());
+            const mlRecommendations = await mlRecommender_1.default.getRecommendations(userQuery, userId || 'anonymous', (0, node_crypto_1.randomUUID)());
             console.log('✅ ML recommendations received:', mlRecommendations.length);
             // Convert ML results to expected format
             return mlRecommendations.map(scored => ({

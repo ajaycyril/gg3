@@ -99,14 +99,10 @@ router.get('/', (0, errorHandler_1.asyncHandler)(async (req, res) => {
     res.json(response);
 }));
 // GET /api/gadgets/:id - Get specific gadget with related data
-router.get('/:id', (0, errorHandler_1.asyncHandler)(async (req, res) => {
+// Use a constrained param route so specific paths like /brands don't get captured
+router.get('/:id([0-9a-fA-F-]{36})', (0, errorHandler_1.asyncHandler)(async (req, res) => {
     const { id } = req.params;
-    if (!id.match(/^[0-9a-fA-F-]{36}$/)) {
-        return res.status(400).json({
-            error: 'Invalid gadget ID format',
-            code: 'INVALID_ID',
-        });
-    }
+    // ID format is already constrained by route regex above
     const { data, error } = await supabaseClient_1.supabase
         .from('gadgets')
         .select(`

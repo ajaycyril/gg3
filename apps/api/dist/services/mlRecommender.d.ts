@@ -39,7 +39,7 @@ declare class MLRecommenderService {
     /**
      * Enhanced laptop-only query with multiple fallback strategies
      */
-    private queryLaptopsOnly;
+    private queryCandidates;
     /**
      * Core ML scoring algorithm - combines multiple factors
      */
@@ -52,6 +52,7 @@ declare class MLRecommenderService {
      * Value-for-money scoring with market analysis
      */
     private calculateValueScore;
+    private calculateBudgetFitScore;
     /**
      * Recency scoring - penalize old technology
      */

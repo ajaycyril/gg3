@@ -69,12 +69,12 @@ export default function AdaptiveChat({ onRecommendationsReceived, onUIConfigUpda
         context: { userMessage: message.trim() }
       })
 
-      if (response.success) {
+      if (response.success ?? !!response.data) {
         const aiMessage: ChatMessage = {
           role: 'assistant',
           content: response.data.response,
           timestamp: new Date().toISOString(),
-          dynamicUI: response.data.dynamicUI || [],
+          dynamicUI: (response.data as any).dynamicUI || (response.data as any).suggestedActions || [],
           recommendations: response.data.recommendations || []
         }
 

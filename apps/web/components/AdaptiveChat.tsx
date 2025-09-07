@@ -42,6 +42,7 @@ export default function AdaptiveChat({ onRecommendationsReceived, onUIConfigUpda
   const [showFilters, setShowFilters] = useState(false)
   const messagesRef = React.useRef<HTMLDivElement | null>(null)
   const inputRef = useRef<HTMLTextAreaElement | null>(null)
+  const [isAtBottom, setIsAtBottom] = useState(true)
 
   // Initialize with a simple welcome message
   useEffect(() => {
@@ -151,6 +152,20 @@ export default function AdaptiveChat({ onRecommendationsReceived, onUIConfigUpda
     }
   }, [messages, isLoading])
 
+  // Track scroll position to toggle FAB
+  useEffect(() => {
+    const node = messagesRef.current
+    if (!node) return
+    const onScroll = () => {
+      const threshold = 16
+      const atBottom = node.scrollTop + node.clientHeight >= node.scrollHeight - threshold
+      setIsAtBottom(atBottom)
+    }
+    node.addEventListener('scroll', onScroll)
+    onScroll()
+    return () => node.removeEventListener('scroll', onScroll)
+  }, [])
+
   // Input handlers: auto-resize and keyboard shortcuts
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const ta = e.target
@@ -235,6 +250,36 @@ export default function AdaptiveChat({ onRecommendationsReceived, onUIConfigUpda
           <Button variant="outline" size="sm" onClick={() => setShowFilters(!showFilters)}>
             {showFilters ? 'Hide Filters' : 'Show Filters'}
           </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setMessages([{
+                role: 'assistant',
+                content: "Hi! I'm your AI laptop advisor. Let me help you find the perfect laptop.",
+                timestamp: new Date().toISOString(),
+                dynamicUI: [
+                  { type: 'button', id: 'start', label: '🚀 Let\'s Find My Laptop', action: 'start_search', priority: 1 }
+                ]
+              }])
+              setSessionId(null)
+            }}
+            title="Start a new chat"
+          >
+            New Chat
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setFilters({})
+              setFacets(null)
+              setNextQuestion(null)
+            }}
+            title="Clear filters"
+          >
+            Clear Filters
+          </Button>
         </div>
       </div>
 
@@ -285,7 +330,7 @@ export default function AdaptiveChat({ onRecommendationsReceived, onUIConfigUpda
             )}
 
             {/* Messages area */}
-            <div ref={messagesRef} role="log" aria-live="polite" className="flex-1 overflow-y-auto p-4 space-y-4 bg-white pb-24">
+            <div ref={messagesRef} role="log" aria-live="polite" className="relative flex-1 overflow-y-auto p-4 space-y-4 bg-white">
               <AnimatePresence initial={false}>
                 {messages.map((message, index) => (
                   <motion.div
@@ -304,6 +349,9 @@ export default function AdaptiveChat({ onRecommendationsReceived, onUIConfigUpda
                           </div>
                           <div className="prose prose-sm max-w-none">
                             <p className="whitespace-pre-wrap leading-relaxed">{message.content}</p>
+                            <p className="mt-1 text-[11px] text-gray-400" aria-hidden>
+                              {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </p>
                             {message.role === 'assistant' && message.dynamicUI && renderDynamicUI(message.dynamicUI)}
                             {message.recommendations && message.recommendations.length > 0 && (
                               <div className="mt-4 p-4 bg-green-50 rounded-lg border border-green-200">
@@ -353,6 +401,23 @@ export default function AdaptiveChat({ onRecommendationsReceived, onUIConfigUpda
                     </div>
                   </Card>
                 </div>
+              )}
+              {/* Scroll-to-bottom FAB */}
+              {!isAtBottom && (
+                <motion.button
+                  onClick={() => {
+                    const node = messagesRef.current
+                    if (node) node.scrollTo({ top: node.scrollHeight, behavior: 'smooth' })
+                  }}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 10 }}
+                  className="absolute right-4 bottom-4 shadow-md rounded-full bg-blue-600 text-white w-10 h-10 flex items-center justify-center"
+                  aria-label="Scroll to latest"
+                  title="Scroll to latest"
+                >
+                  ↓
+                </motion.button>
               )}
             </div>
 

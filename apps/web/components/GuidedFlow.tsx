@@ -92,13 +92,15 @@ export default function GuidedFlow({ onRecommendations, onDone }: GuidedFlowProp
 
   return (
     <div className="h-full flex flex-col">
-      <div className="p-4 border-b bg-white/80 backdrop-blur">
+      <div className="p-4 border-b bg-gradient-to-r from-blue-50 to-white">
         <h2 className="text-lg font-semibold">Find Your Laptop</h2>
-        <p className="text-sm text-[hsl(var(--muted-foreground))]">Answer a few quick questions and get tailored picks</p>
+        <p className="text-sm text-[hsl(var(--muted-foreground))]">Answer a few quick questions and see matches update live</p>
       </div>
 
-      <div className="flex-1 overflow-auto p-6">
-        <AnimatePresence mode="wait">
+      <div className="flex-1 overflow-hidden p-4 md:p-6">
+        <div className="h-full md:grid md:grid-cols-2 md:gap-6">
+          <div className="h-full overflow-auto">
+            <AnimatePresence mode="wait">
           {step === 0 && (
             <motion.div key="step0" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
               <h3 className="font-medium mb-3">What will you mainly use the laptop for?</h3>
@@ -187,27 +189,32 @@ export default function GuidedFlow({ onRecommendations, onDone }: GuidedFlowProp
           )}
         </AnimatePresence>
 
-        {/* Live matches panel */}
-        <div className="mt-6">
-          <div className="flex items-center justify-between mb-2">
-            <h4 className="text-sm font-semibold">Live Matches</h4>
-            {liveLoading && <span className="text-xs text-[hsl(var(--muted-foreground))]">Updating…</span>}
           </div>
-          {liveRecs.length === 0 ? (
-            <p className="text-sm text-[hsl(var(--muted-foreground))]">Adjust your choices to see matches.</p>
-          ) : (
-            <div className="space-y-3">
-              {liveRecs.slice(0, 5).map((r, i) => (
-                <div key={i} className="border border-[hsl(var(--border))] rounded-md p-3 flex items-center justify-between">
-                  <div>
-                    <div className="font-medium text-sm">{r.laptop?.name} <span className="text-[hsl(var(--muted-foreground))]">({r.laptop?.brand})</span></div>
-                    <div className="text-xs text-[hsl(var(--muted-foreground))]">{r.reasoning}</div>
-                  </div>
-                  <div className="text-sm font-semibold">{r.laptop?.price ? `$${r.laptop.price}` : 'TBA'}</div>
-                </div>
-              ))}
+
+          {/* Live matches panel (sticky on desktop) */}
+          <div className="hidden md:block h-full overflow-auto">
+            <div className="md:sticky md:top-0">
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="text-sm font-semibold">Live Matches</h4>
+                {liveLoading && <span className="text-xs text-[hsl(var(--muted-foreground))]">Updating…</span>}
+              </div>
+              {liveRecs.length === 0 ? (
+                <p className="text-sm text-[hsl(var(--muted-foreground))]">Adjust your choices to see matches.</p>
+              ) : (
+                <motion.div variants={container} initial="hidden" animate="show" className="space-y-3">
+                  {liveRecs.slice(0, 6).map((r, i) => (
+                    <motion.div key={i} variants={item} className="border border-[hsl(var(--border))] rounded-md p-3 flex items-center justify-between bg-white hover:shadow-sm transition">
+                      <div className="pr-3">
+                        <div className="font-medium text-sm">{r.laptop?.name} <span className="text-[hsl(var(--muted-foreground))]">({r.laptop?.brand})</span></div>
+                        <div className="text-xs text-[hsl(var(--muted-foreground))] line-clamp-2">{r.reasoning}</div>
+                      </div>
+                      <div className="text-sm font-semibold whitespace-nowrap">{r.laptop?.price ? `$${r.laptop.price}` : 'TBA'}</div>
+                    </motion.div>
+                  ))}
+                </motion.div>
+              )}
             </div>
-          )}
+          </div>
         </div>
       </div>
     </div>

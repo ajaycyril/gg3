@@ -34,6 +34,8 @@ export function Button({
           'h-10 px-4 py-2': size === 'md',
           'h-11 px-8 text-lg': size === 'lg',
         },
+        // Microinteractions
+        'active:translate-y-px',
         className
       )}
       disabled={disabled || loading}

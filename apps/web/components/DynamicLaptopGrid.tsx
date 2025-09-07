@@ -196,7 +196,7 @@ export default function DynamicLaptopGrid({
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.2 }}
       >
-      <Card className={`${getDensityClasses()} hover:shadow-lg transition-all cursor-pointer`} onClick={() => { window.dispatchEvent(new CustomEvent('toast', { detail: { message: 'Opening details…' } })); onLaptopSelect?.(laptop) }}>
+      <Card className={`${getDensityClasses()} hover:shadow-lg transition-all cursor-pointer transform hover:-translate-y-0.5`} onClick={() => { window.dispatchEvent(new CustomEvent('toast', { detail: { message: 'Opening details…' } })); onLaptopSelect?.(laptop) }}>
         
         <div className={`${isCompact ? 'flex items-center space-x-4' : ''}`}>
           {/* Basic Info */}

@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
         recommendations: result.recommendations || [],
         databaseQuery: result.databaseQuery
       },
-      meta: { openai: openaiUsed }
+      meta: { openai: openaiUsed, model: result.modelUsed || process.env.MODEL_GPT || 'gpt-4o' }
     })
   } catch (err: any) {
     // Optional fallback only when explicitly enabled

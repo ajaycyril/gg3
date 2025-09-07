@@ -31,7 +31,8 @@ interface ConversationState {
 
 class DynamicAIService {
   private openai?: OpenAI;
-  private readonly MODEL_GPT4 = 'gpt-4o';
+  private readonly modelPrimary: string;
+  private readonly modelFallback: string;
   private conversations: Map<string, ConversationState> = new Map();
   private cache: Map<string, { data: any; ts: number }> = new Map();
   private cacheTtlMs = 2 * 60 * 1000; // 2 minutes
@@ -44,6 +45,8 @@ class DynamicAIService {
     } else {
       logger.warn('DynamicAI initializing without OPENAI_API_KEY; will attempt lazy init at runtime');
     }
+    this.modelPrimary = process.env.MODEL_GPT || 'gpt-4o';
+    this.modelFallback = process.env.MODEL_GPT_FALLBACK || 'gpt-4o-mini';
   }
 
   private ensureOpenAI() {
@@ -88,6 +91,7 @@ class DynamicAIService {
     dynamicUI: DynamicUIElement[];
     recommendations?: any[];
     databaseQuery?: any;
+    modelUsed?: string;
   }> {
     try {
       const currentSessionId = sessionId || randomUUID();
@@ -137,15 +141,18 @@ class DynamicAIService {
       const systemPrompt = this.buildDynamicSystemPrompt(conversationState, gadgets || []);
       
       this.ensureOpenAI();
-      const response = await this.openai!.chat.completions.create({
-        model: this.MODEL_GPT4,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userInput }
-        ],
-        temperature: 0.7,
-        max_tokens: 2000,
-        functions: [
+      let modelUsed = this.modelPrimary;
+      let response;
+      try {
+        response = await this.openai!.chat.completions.create({
+          model: this.modelPrimary,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userInput }
+          ],
+          temperature: 0.7,
+          max_tokens: 2000,
+          functions: [
           {
             name: 'generate_dynamic_interface',
             description: 'Generate dynamic UI elements and database queries based on user input',
@@ -225,9 +232,39 @@ class DynamicAIService {
               required: ['response_text', 'phase', 'ui_elements']
             }
           }
-        ],
-        function_call: { name: 'generate_dynamic_interface' }
-      });
+          ],
+          function_call: { name: 'generate_dynamic_interface' }
+        });
+      } catch (primaryErr: any) {
+        // Automatic fallback to modelFallback only for model issues
+        const msg = (primaryErr?.message || '').toLowerCase();
+        const code = primaryErr?.status || primaryErr?.code || '';
+        if (msg.includes('model') || String(code).includes('404')) {
+          modelUsed = this.modelFallback;
+          response = await this.openai!.chat.completions.create({
+            model: this.modelFallback,
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: userInput }
+            ],
+            temperature: 0.7,
+            max_tokens: 2000,
+            functions: [
+              {
+                name: 'generate_dynamic_interface',
+                description: 'Generate dynamic UI elements and database queries based on user input',
+                parameters: {
+                  type: 'object',
+                  properties: {},
+                }
+              }
+            ],
+            function_call: { name: 'generate_dynamic_interface' }
+          });
+        } else {
+          throw primaryErr;
+        }
+      }
 
       console.log('✅ OpenAI function call successful');
 
@@ -287,7 +324,8 @@ class DynamicAIService {
         sessionId: currentSessionId,
         dynamicUI: aiResponse.ui_elements || [],
         recommendations,
-        databaseQuery: aiResponse.database_filter
+        databaseQuery: aiResponse.database_filter,
+        modelUsed
       };
 
       this.putInCache(cacheKey, payload);

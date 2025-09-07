@@ -210,21 +210,7 @@ export const api = {
     return response.json()
   },
 
-  async updateUserPreferences(preferences: UserPreferences): Promise<ApiResponse<UserPreferences>> {
-    const response = await fetch(`${API_BASE}/api/users/preferences`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(preferences),
-    })
-
-    if (!response.ok) {
-      throw new Error(`Failed to update user preferences: ${response.statusText}`)
-    }
-
-    return response.json()
-  },
+  // updateUserPreferences is already defined above in this module
 
   async saveGadget(gadgetId: string, action: 'save' | 'unsave') {
     const response = await fetch(`${API_BASE}/api/users/save-gadget`, {
@@ -355,5 +341,40 @@ export const api = {
     }
 
     return response.json()
+  },
+
+  async updateUserPreferences(preferences: UserPreferences): Promise<ApiResponse<UserPreferences>> {
+    const response = await fetch(`${API_BASE}/api/users/preferences`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(preferences),
+    })
+
+    if (!response.ok) {
+      throw new Error(`Failed to update user preferences: ${response.statusText}`)
+    }
+
+    return response.json()
+  },
+
+  async trackInteraction(evt: {
+    sessionId?: string
+    userId?: string
+    laptopId?: string
+    userAction: 'clicked' | 'purchased' | 'dismissed' | 'compared'
+    feedback?: 'positive' | 'negative'
+    query?: any
+    recommendedLaptop?: any
+  }) {
+    const response = await fetch(`${API_BASE}/api/feedback/record`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(evt)
+    })
+    if (!response.ok) {
+      console.warn('trackInteraction failed', await response.text())
+    }
   }
 }

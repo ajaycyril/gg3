@@ -50,6 +50,18 @@ export default function HomePage() {
     return () => window.removeEventListener('open-details' as any, handler)
   }, [])
 
+  // Track compare clicks
+  useEffect(() => {
+    const onCompare = async (e: any) => {
+      try {
+        const laptopId = e?.detail?.laptopId
+        await api.trackInteraction({ userId: user?.id, userAction: 'compared', laptopId })
+      } catch {}
+    }
+    window.addEventListener('open-compare' as any, onCompare)
+    return () => window.removeEventListener('open-compare' as any, onCompare)
+  }, [user?.id])
+
   // Initialize the adaptive interface
   useEffect(() => {
     initializeAdaptiveInterface()
@@ -483,7 +495,10 @@ export default function HomePage() {
         recommendationsCount={recommendations.length}
         laptopsCount={laptops.length}
         mode={(effectiveConfig.content.spec_detail_level as 'basic'|'detailed'|'expert')}
-        onChangeMode={(m) => setUiConfig(prev => { const cfg = ensureUIConfig(prev); return { ...cfg, content: { ...cfg.content, spec_detail_level: m } } })}
+        onChangeMode={async (m) => {
+          setUiConfig(prev => { const cfg = ensureUIConfig(prev); return { ...cfg, content: { ...cfg.content, spec_detail_level: m } } })
+          try { await api.updateUserPreferences({} as any) } catch {}
+        }}
         onCompare={() => {
           setCompareOpen(true)
           if (activeView === 'chat' && recommendations.length > 0) setActiveView('split')

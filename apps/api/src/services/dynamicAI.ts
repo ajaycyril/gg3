@@ -229,8 +229,9 @@ class DynamicAIService {
       // Generate recommendations if we have enough data
       let recommendations: any[] = [];
       if (aiResponse.phase === 'recommendation' && aiResponse.database_filter) {
+        const sanitized = await this.sanitizeFilters(aiResponse.database_filter);
         recommendations = await this.queryAndRecommend(
-          aiResponse.database_filter,
+          sanitized,
           conversationState.collectedData,
           userId
         );
@@ -256,6 +257,43 @@ class DynamicAIService {
         sessionId: sessionId || randomUUID(),
         dynamicUI: fallbackUI
       };
+    }
+  }
+
+  private async sanitizeFilters(filters: any): Promise<any> {
+    const out = { ...filters };
+    const min = typeof out.price_min === 'number' ? out.price_min : 300;
+    const max = typeof out.price_max === 'number' ? out.price_max : 3000;
+    out.price_min = Math.max(100, Math.min(min, max - 50));
+    out.price_max = Math.max(out.price_min + 50, Math.min(max, 10000));
+
+    if (Array.isArray(out.brands)) {
+      out.brands = Array.from(new Set(out.brands.map((b: string) => (b || '').trim()))).filter(Boolean);
+    }
+
+    // Validate candidate count and relax if zero
+    let count = await this.countCandidates(out);
+    if (count === 0) {
+      out.price_min = Math.floor(out.price_min * 0.75);
+      out.price_max = Math.ceil(out.price_max * 1.25);
+      count = await this.countCandidates(out);
+    }
+    if (count === 0 && Array.isArray(out.brands) && out.brands.length > 0) {
+      delete out.brands;
+    }
+    return out;
+  }
+
+  private async countCandidates(filters: any): Promise<number> {
+    try {
+      let q = supabase.from('gadgets').select('id', { count: 'exact', head: true });
+      if (typeof filters.price_min === 'number') q = q.gte('price', filters.price_min);
+      if (typeof filters.price_max === 'number') q = q.lte('price', filters.price_max);
+      if (Array.isArray(filters.brands) && filters.brands.length > 0) q = q.in('brand', filters.brands);
+      const { count } = await q;
+      return count || 0;
+    } catch {
+      return 0;
     }
   }
 

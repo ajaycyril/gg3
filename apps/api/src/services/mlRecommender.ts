@@ -106,8 +106,8 @@ class MLRecommenderService {
       let query = supabase
         .from('gadgets')
         .select('*')
-        .gte('price', userQuery.budget.min * 0.8)
-        .lte('price', userQuery.budget.max * 1.2);
+        .gte('price', Math.max(100, userQuery.budget.min))
+        .lte('price', Math.max(userQuery.budget.min + 50, userQuery.budget.max));
 
       if (targetCategories.length > 0) {
         // Category is indexed; prefer it over name heuristics
@@ -120,7 +120,7 @@ class MLRecommenderService {
       }
 
       if (userQuery.brands && userQuery.brands.length > 0) {
-        query = query.in('brand', userQuery.brands);
+        query = query.in('brand', Array.from(new Set(userQuery.brands)));
       }
 
       const { data: byCategory, error } = await query;

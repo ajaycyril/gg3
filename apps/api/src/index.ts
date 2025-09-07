@@ -122,22 +122,26 @@ app.use('*', (req: Request, res: Response) => {
   });
 });
 
-// Start server
-const server = app.listen(port, () => {
-  logger.info(`🚀 GadgetGuru AI API running on port ${port}`);
-  logger.info(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
-});
-
-// Graceful shutdown
-const shutdown = () => {
-  logger.info('Shutting down gracefully...');
-  server.close(() => {
-    logger.info('Server closed');
-    process.exit(0);
+// Start server in traditional mode only when not on Vercel serverless
+let server: any;
+if (!process.env.VERCEL) {
+  server = app.listen(port, () => {
+    logger.info(`🚀 GadgetGuru AI API running on port ${port}`);
+    logger.info(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
   });
-};
+}
 
-process.on('SIGTERM', shutdown);
-process.on('SIGINT', shutdown);
+// Graceful shutdown (only when server is running)
+if (server) {
+  const shutdown = () => {
+    logger.info('Shutting down gracefully...');
+    server.close(() => {
+      logger.info('Server closed');
+      process.exit(0);
+    });
+  };
+  process.on('SIGTERM', shutdown);
+  process.on('SIGINT', shutdown);
+}
 
 export default app;

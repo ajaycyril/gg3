@@ -9,6 +9,7 @@ import DynamicLaptopGrid from '@/components/DynamicLaptopGrid'
 import { Button } from '@/components/ui/Button'
 import { UIConfiguration } from '@gadgetguru/shared'
 import BottomBar from '@/components/BottomBar'
+import SimpleToast from '@/components/SimpleToast'
 
 export default function HomePage() {
   const { user, signOut, signInWithProvider, loading } = useAuth()
@@ -494,6 +495,8 @@ export default function HomePage() {
           window.dispatchEvent(new CustomEvent('toggle-filters'))
         }}
       />
+
+      <SimpleToast />
 
       {/* Footer */}
       <footer className="bg-white border-t border-gray-200 mt-12">

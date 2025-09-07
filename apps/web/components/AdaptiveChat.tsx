@@ -332,6 +332,7 @@ export default function AdaptiveChat({ onRecommendationsReceived, onUIConfigUpda
               // Notify other views (e.g., grid) to clear their local filters
               if (typeof window !== 'undefined') {
                 window.dispatchEvent(new CustomEvent('clear-filters'))
+                window.dispatchEvent(new CustomEvent('toast', { detail: { message: 'Started a new chat' } }))
               }
             }}
             title="Start a new chat"
@@ -348,6 +349,7 @@ export default function AdaptiveChat({ onRecommendationsReceived, onUIConfigUpda
               // Inform other components to clear their filter state
               if (typeof window !== 'undefined') {
                 window.dispatchEvent(new CustomEvent('clear-filters'))
+                window.dispatchEvent(new CustomEvent('toast', { detail: { message: 'Filters cleared' } }))
               }
             }}
             title="Clear filters"

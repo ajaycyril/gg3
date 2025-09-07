@@ -71,6 +71,27 @@ class MLRecommenderService {
                 creative: ['laptop']
             };
             const targetCategories = Array.from(new Set((userQuery.purpose || []).flatMap(p => purposeToCategories[p.toLowerCase()] || [])));
+            // Optional: vector similarity prefilter (if pgvector RPC exists)
+            try {
+                const queryText = [
+                    ...(userQuery.purpose || []),
+                    ...(userQuery.priorities || []),
+                    userQuery.text || ''
+                ].join(' ').trim() || 'laptop';
+                const { data: vec, error: vecErr } = await supabaseClient_1.supabaseAdmin.rpc('match_gadgets', {
+                    query_text: queryText,
+                    match_count: 100,
+                    price_min: userQuery.budget.min,
+                    price_max: userQuery.budget.max,
+                    brand_filter: (userQuery.brands || []).join(',') || null
+                });
+                if (!vecErr && Array.isArray(vec) && vec.length > 0) {
+                    return vec;
+                }
+            }
+            catch (e) {
+                logger_1.default.debug('Vector prefilter unavailable, using metadata fallback');
+            }
             // Primary: filter by category when provided
             let query = supabaseClient_1.supabase
                 .from('gadgets')

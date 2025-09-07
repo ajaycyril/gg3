@@ -62,14 +62,11 @@ export default function GuidedFlow({ onRecommendations, onDone }: GuidedFlowProp
                   { k: 'creative', label: '🎨 Creative' },
                   { k: 'student', label: '🎓 Student' }
                 ].map((p) => (
-                  <motion.button key={p.k} variants={item} onClick={() => setPurpose(p.k)} className={`border rounded-md p-3 text-left hover:bg-[hsl(var(--muted))] ${purpose === p.k ? 'border-[hsl(var(--ring))]' : 'border-[hsl(var(--border))]'}`}>
+                  <motion.button key={p.k} variants={item} onClick={() => { setPurpose(p.k); next(); }} className={`border rounded-md p-3 text-left hover:bg-[hsl(var(--muted))] ${purpose === p.k ? 'border-[hsl(var(--ring))]' : 'border-[hsl(var(--border))]'}`}>
                     {p.label}
                   </motion.button>
                 ))}
               </motion.div>
-              <div className="mt-4 flex gap-2">
-                <Button onClick={next} disabled={!purpose}>Next</Button>
-              </div>
             </motion.div>
           )}
 
@@ -77,24 +74,34 @@ export default function GuidedFlow({ onRecommendations, onDone }: GuidedFlowProp
             <motion.div key="step1" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
               <h3 className="font-medium mb-3">What&rsquo;s your budget?</h3>
               <div className="space-y-3">
+                {/* Quick presets advance immediately */}
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { min: 500, max: 800, label: '$500–$800' },
+                    { min: 800, max: 1200, label: '$800–$1200' },
+                    { min: 1200, max: 2000, label: '$1200–$2000' },
+                    { min: 2000, max: 3000, label: '$2000–$3000' }
+                  ].map(p => (
+                    <Button key={p.label} variant="outline" size="sm" onClick={() => { setBudget({ min: p.min, max: p.max }); next(); }}>{p.label}</Button>
+                  ))}
+                </div>
                 <div className="flex items-center gap-3">
                   <div className="flex-1">
                     <label className="text-xs text-[hsl(var(--muted-foreground))]">Min</label>
-                    <input type="range" min={300} max={5000} step={50} value={budget.min} onChange={(e) => setBudget({ ...budget, min: parseInt(e.target.value) })} className="w-full" />
+                    <input type="range" min={300} max={5000} step={50} value={budget.min} onChange={(e) => setBudget({ ...budget, min: parseInt(e.target.value) })} onMouseUp={next} onTouchEnd={next} className="w-full" />
                   </div>
                   <div className="w-20 text-right">${budget.min}</div>
                 </div>
                 <div className="flex items-center gap-3">
                   <div className="flex-1">
                     <label className="text-xs text-[hsl(var(--muted-foreground))]">Max</label>
-                    <input type="range" min={300} max={5000} step={50} value={budget.max} onChange={(e) => setBudget({ ...budget, max: parseInt(e.target.value) })} className="w-full" />
+                    <input type="range" min={300} max={5000} step={50} value={budget.max} onChange={(e) => setBudget({ ...budget, max: parseInt(e.target.value) })} onMouseUp={next} onTouchEnd={next} className="w-full" />
                   </div>
                   <div className="w-20 text-right">${budget.max}</div>
                 </div>
               </div>
               <div className="mt-4 flex gap-2">
                 <Button variant="outline" onClick={back}>Back</Button>
-                <Button onClick={next}>Next</Button>
               </div>
             </motion.div>
           )}
@@ -104,14 +111,14 @@ export default function GuidedFlow({ onRecommendations, onDone }: GuidedFlowProp
               <h3 className="font-medium mb-3">Any preferred brands?</h3>
               <motion.div variants={container} initial="hidden" animate="show" className="flex flex-wrap gap-2">
                 {['Apple','Dell','HP','Lenovo','ASUS','Acer','MSI','Alienware'].map((b) => (
-                  <motion.button key={b} variants={item} onClick={() => toggleBrand(b)} className={`px-3 py-1 rounded-full border ${brands.includes(b) ? 'bg-[hsl(var(--ring))] text-white border-[hsl(var(--ring))]' : 'border-[hsl(var(--border))] hover:bg-[hsl(var(--muted))]'}`}>
+                  <motion.button key={b} variants={item} onClick={() => { setBrands([b]); next(); }} className={`px-3 py-1 rounded-full border ${brands.includes(b) ? 'bg-[hsl(var(--ring))] text-white border-[hsl(var(--ring))]' : 'border-[hsl(var(--border))] hover:bg-[hsl(var(--muted))]'}`}>
                     {b}
                   </motion.button>
                 ))}
               </motion.div>
               <div className="mt-4 flex gap-2">
                 <Button variant="outline" onClick={back}>Back</Button>
-                <Button onClick={next}>Next</Button>
+                <button className="text-xs text-[hsl(var(--muted-foreground))] underline" onClick={next}>Skip</button>
               </div>
             </motion.div>
           )}
@@ -135,4 +142,3 @@ export default function GuidedFlow({ onRecommendations, onDone }: GuidedFlowProp
     </div>
   )
 }
-

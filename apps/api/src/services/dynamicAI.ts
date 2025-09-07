@@ -30,20 +30,28 @@ interface ConversationState {
 }
 
 class DynamicAIService {
-  private openai: OpenAI;
+  private openai?: OpenAI;
   private readonly MODEL_GPT4 = 'gpt-4o';
   private conversations: Map<string, ConversationState> = new Map();
 
   constructor() {
-    if (!process.env.OPENAI_API_KEY) {
-      throw new Error('OpenAI API key is required');
+    const key = process.env.OPENAI_API_KEY;
+    if (key) {
+      this.openai = new OpenAI({ apiKey: key });
+      logger.info('DynamicAI service initialized');
+    } else {
+      logger.warn('DynamicAI initializing without OPENAI_API_KEY; will attempt lazy init at runtime');
     }
+  }
 
-    this.openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
-    });
-
-    logger.info('DynamicAI service initialized');
+  private ensureOpenAI() {
+    if (!this.openai) {
+      const key = process.env.OPENAI_API_KEY;
+      if (!key) {
+        throw new Error('OpenAI API key is required');
+      }
+      this.openai = new OpenAI({ apiKey: key });
+    }
   }
 
   async processConversation(
@@ -84,7 +92,8 @@ class DynamicAIService {
       // Create AI prompt for dynamic interface generation
       const systemPrompt = this.buildDynamicSystemPrompt(conversationState, gadgets || []);
       
-      const response = await this.openai.chat.completions.create({
+      this.ensureOpenAI();
+      const response = await this.openai!.chat.completions.create({
         model: this.MODEL_GPT4,
         messages: [
           { role: 'system', content: systemPrompt },

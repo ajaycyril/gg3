@@ -340,7 +340,7 @@ function DynamicUIRenderer({ element, onAction }: {
                     : [...selectedOptions, option]
                   setSelectedOptions(newSelected)
                 }}
-                variant={selectedOptions.includes(option) ? 'default' : 'outline'}
+                variant={selectedOptions.includes(option) ? 'primary' : 'outline'}
                 size="sm"
               >
                 {option}

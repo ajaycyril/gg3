@@ -59,7 +59,26 @@ export default function GuidedFlow({ onRecommendations, onDone }: GuidedFlowProp
           use_cases: purpose ? [purpose] : []
         }
         const res = await api.getAIRecommendations(prefs, {})
-        const data = (res as any)?.data || []
+        let data = (res as any)?.data || []
+        // Fallback: if AI returns empty, pull gadgets and map to rec shape
+        if (!data.length) {
+          try {
+            const g = await api.getGadgets({ limit: 20, brands: brands.length ? [brands[0]] : undefined })
+            const gadgets = (g as any)?.data || []
+            // Client-side price filter fallback
+            const filtered = gadgets.filter((x: any) => !x.price || (x.price >= budget.min && x.price <= budget.max))
+            data = filtered.slice(0, 8).map((x: any, idx: number) => ({
+              laptop: x,
+              rank: idx + 1,
+              score: Math.max(0.5, 1 - idx * 0.07),
+              reasoning: purpose ? `Good for ${purpose}` : 'Matches your filters',
+              highlights: brands.length ? [`Brand ${brands[0]}`] : ['Good value'],
+              valueScore: 0.6,
+              similarityScore: 0.6,
+              recencyScore: 0.5
+            }))
+          } catch {}
+        }
         setLiveRecs(data)
         // Continuously inform parent so the grid updates live
         onRecommendations(data)

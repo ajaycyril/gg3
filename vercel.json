@@ -1,15 +1,7 @@
 {
   "version": 2,
   "name": "gadgetguru-v0",
-  "env": {
-    "NEXT_PUBLIC_SUPABASE_URL": "@supabase_url",
-    "NEXT_PUBLIC_SUPABASE_ANON_KEY": "@supabase_anon_key",
-    "NODE_ENV": "production",
-    "OPENAI_API_KEY": "@openai_api_key",
-    "SUPABASE_URL": "@supabase_url",
-    "SUPABASE_ANON_KEY": "@supabase_anon_key",
-    "SUPABASE_SERVICE_ROLE_KEY": "@supabase_service_role_key"
-  },
+  
   "headers": [
     {
       "source": "/api/(.*)",

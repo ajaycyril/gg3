@@ -16,6 +16,25 @@ export default function HomePage() {
   const [activeView, setActiveView] = useState<'chat' | 'browse' | 'split'>('split')
   const [selectedLaptop, setSelectedLaptop] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [compareOpen, setCompareOpen] = useState(false)
+
+  const ensureUIConfig = (prev: UIConfiguration | null): UIConfiguration => prev ?? ({
+    layout: { view_mode: 'cards', density: 'normal', sidebar_visible: true },
+    filters: { visible_filters: ['price', 'brand', 'use_case'], advanced_filters_visible: false, filter_complexity: 'simple' },
+    content: { spec_detail_level: 'basic', show_benchmarks: false, show_technical_details: false, comparison_mode: 'simple' },
+    recommendations: { explanation_depth: 'moderate', show_alternatives: true, highlight_technical: false },
+    interaction: { chat_complexity: 'conversational', suggested_questions_complexity: 5, enable_deep_dive_mode: false }
+  })
+
+  // Listen for compare request from chat CTAs
+  useEffect(() => {
+    const handler = (e: any) => {
+      setCompareOpen(true)
+      if (activeView === 'chat' && recommendations.length > 0) setActiveView('split')
+    }
+    window.addEventListener('open-compare' as any, handler)
+    return () => window.removeEventListener('open-compare' as any, handler)
+  }, [activeView, recommendations.length])
 
   // Initialize the adaptive interface
   useEffect(() => {
@@ -180,7 +199,30 @@ export default function HomePage() {
           </button>
         ))}
       </div>
-      
+      {/* Mode switcher */}
+      <div className="ml-4 flex items-center gap-2">
+        <span className="text-sm text-gray-600">Mode:</span>
+        <div className="flex border rounded-md overflow-hidden">
+          {[
+            { key: 'basic', label: 'Simple' },
+            { key: 'detailed', label: 'Detailed' },
+            { key: 'expert', label: 'Expert' }
+          ].map(({ key, label }) => (
+            <button
+              key={key}
+              onClick={() => setUiConfig(prev => { const cfg = ensureUIConfig(prev); return { ...cfg, content: { ...cfg.content, spec_detail_level: key as any } } })}
+              className={`px-3 py-1 text-xs ${
+                uiConfig?.content?.spec_detail_level === key
+                  ? 'bg-blue-500 text-white'
+                  : 'bg-white hover:bg-gray-50 text-gray-700'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Expertise indicator with proper null checking */}
       {uiConfig?.content && (
         <div className="ml-4 px-3 py-1 bg-gray-100 rounded-full text-xs">
@@ -286,22 +328,22 @@ export default function HomePage() {
         {/* Quick Stats */}
         {laptops.length > 0 && (
           <div className="mt-6 grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="bg-white p-4 rounded-lg border border-gray-200">
+            <button className="bg-white p-4 rounded-lg border border-gray-200 text-left hover:shadow-sm" onClick={() => setActiveView('browse')}>
               <div className="text-2xl font-bold text-blue-600">{laptops.length}</div>
               <div className="text-sm text-gray-600">Laptops Available</div>
-            </div>
+            </button>
             
-            <div className="bg-white p-4 rounded-lg border border-gray-200">
+            <button className="bg-white p-4 rounded-lg border border-gray-200 text-left hover:shadow-sm" onClick={() => (recommendations.length > 0 ? setActiveView('split') : null)}>
               <div className="text-2xl font-bold text-green-600">{recommendations.length}</div>
               <div className="text-sm text-gray-600">AI Recommendations</div>
-            </div>
+            </button>
             
-            <div className="bg-white p-4 rounded-lg border border-gray-200">
+            <button className="bg-white p-4 rounded-lg border border-gray-200 text-left hover:shadow-sm" onClick={() => { /* open mode switcher above */ }}>
               <div className="text-2xl font-bold text-purple-600">
                 {uiConfig?.content?.spec_detail_level || 'Auto'}
               </div>
               <div className="text-sm text-gray-600">Complexity Level</div>
-            </div>
+            </button>
             
             <div className="bg-white p-4 rounded-lg border border-gray-200">
               <div className="text-2xl font-bold text-orange-600">
@@ -358,6 +400,33 @@ export default function HomePage() {
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Compare Modal */}
+      {compareOpen && recommendations.length > 0 && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" role="dialog" aria-modal="true" onClick={() => setCompareOpen(false)}>
+          <div className="w-full max-w-4xl bg-white rounded-lg shadow-lg border border-gray-200" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-4 border-b">
+              <h3 className="text-lg font-semibold">Compare Top 3</h3>
+              <button onClick={() => setCompareOpen(false)} className="px-3 py-1 text-sm rounded-md border hover:bg-gray-50">Close</button>
+            </div>
+            <div className="p-4 overflow-x-auto">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {recommendations.slice(0,3).map((r: any, idx: number) => (
+                  <div key={idx} className="border rounded-lg p-3">
+                    <div className="font-semibold mb-1">{r.laptop?.name} <span className="text-gray-600">({r.laptop?.brand})</span></div>
+                    <div className="text-green-700 font-bold mb-2">{r.laptop?.price ? `$${r.laptop.price}` : 'Price TBA'}</div>
+                    <ul className="text-sm text-gray-700 list-disc ml-4 space-y-1">
+                      {(r.highlights || []).slice(0,3).map((h: string, i: number) => (
+                        <li key={i}>{h}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>

@@ -194,15 +194,55 @@ export default function AdaptiveChat({ onRecommendationsReceived, onUIConfigUpda
           message = 'I need a work/business laptop'
         } else if (element.action === 'select_budget') {
           message = 'I\'m looking for budget-friendly options'
+        } else if (element.action === 'adjust_budget') {
+          // Surface a local budget slider UI for quick refinement
+          setCurrentDynamicUI([
+            {
+              type: 'slider',
+              id: 'budget_slider',
+              label: 'Set your budget',
+              options: { min: 300, max: 5000, step: 100 },
+              priority: 1
+            }
+          ] as any)
+          return
+        } else if (element.action === 'adjust_brands') {
+          // If we have facets, show top brand quick multiselect
+          const brandOptions = Array.isArray((facets as any)?.brands)
+            ? (facets as any).brands.map((b: any) => b.brand)
+            : ['Apple', 'Dell', 'HP', 'Lenovo', 'ASUS', 'Acer', 'MSI']
+          setCurrentDynamicUI([
+            {
+              type: 'multiselect',
+              id: 'brand_select',
+              label: 'Pick preferred brands',
+              options: brandOptions,
+              priority: 1
+            }
+          ] as any)
+          return
+        } else if (element.action === 'compare_top3') {
+          // Notify the page to open compare view
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('open-compare', { detail: { topN: 3 } }))
+          }
+          return
+        } else if (element.action === 'refine') {
+          setShowFilters(true)
+          return
         } else {
           message = element.label
         }
         break
       case 'slider':
         message = `My budget range is $${value.min} to $${value.max}`
+        // Apply locally too, to immediately update facets
+        applyFilterDelta({ price_min: value.min, price_max: value.max })
         break
       case 'multiselect':
         message = `I'm interested in: ${value.join(', ')}`
+        // Apply brand selection locally
+        applyFilterDelta({ brands: value })
         break
       case 'quickaction':
         message = element.label
